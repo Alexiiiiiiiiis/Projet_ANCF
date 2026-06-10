@@ -11,7 +11,7 @@ vi.mock('../services/api', () => ({
   },
 }))
 
-const mockApi = api as {
+const mockApi = api as unknown as {
   post: ReturnType<typeof vi.fn>
   get: ReturnType<typeof vi.fn>
   put: ReturnType<typeof vi.fn>
