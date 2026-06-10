@@ -1,0 +1,41 @@
+# Environment
+.env
+!.env.example
+!.env.test
+
+# Backend
+backend/vendor/
+backend/var/
+backend/config/jwt/*.pem
+backend/.env.local
+backend/.env.dev
+backend/.env.*.local
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+
+# Docker volumes
+docker/volumes/
+
+# Notes personnelles
+conversation-prim-api.md
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Coverage
+backend/coverage.xml
+frontend/coverage/
+.claude

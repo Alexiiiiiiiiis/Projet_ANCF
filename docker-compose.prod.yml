@@ -1,0 +1,75 @@
+version: '3.9'
+
+services:
+  php:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile.prod
+    container_name: ancf_php_prod
+    working_dir: /var/www/backend
+    volumes:
+      - ./backend:/var/www/backend:ro
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: "0"
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET_KEY: /var/www/backend/config/jwt/private.pem
+      JWT_PUBLIC_KEY: /var/www/backend/config/jwt/public.pem
+      JWT_PASSPHRASE: ${JWT_PASSPHRASE}
+      IDFM_API_KEY: ${IDFM_API_KEY}
+      CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN}
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - ancf_network
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: ancf_nginx_prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./backend/public:/var/www/backend/public:ro
+      - ./frontend/dist:/var/www/frontend:ro
+      - ./docker/nginx/prod.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+    depends_on:
+      - php
+    networks:
+      - ancf_network
+
+  mysql:
+    image: mysql:8.0
+    container_name: ancf_mysql_prod
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ancf_transport}
+      MYSQL_USER: ${MYSQL_USER:-ancf_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data_prod:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - ancf_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: ancf_redis_prod
+    restart: unless-stopped
+    networks:
+      - ancf_network
+
+volumes:
+  mysql_data_prod:
+
+networks:
+  ancf_network:
+    driver: bridge
