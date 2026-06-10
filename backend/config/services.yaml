@@ -1,0 +1,20 @@
+parameters:
+    idfm_api_key: '%env(IDFM_API_KEY)%'
+    idfm_api_base_url: 'https://prim.iledefrance-mobilites.fr/marketplace/v2/navitia'
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/DependencyInjection/'
+            - '../src/Entity/'
+            - '../src/Kernel.php'
+
+    App\Service\IdfmApiService:
+        arguments:
+            $apiKey: '%idfm_api_key%'
+            $apiBaseUrl: '%idfm_api_base_url%'
