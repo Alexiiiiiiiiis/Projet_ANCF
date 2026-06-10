@@ -68,13 +68,15 @@ jobs:
       - name: Run PHPUnit tests
         working-directory: backend
         env:
-          DATABASE_URL: mysql://ancf_user:ancf_pass@127.0.0.1:3306/ancf_transport_test
+          # En env test, Doctrine ajoute le suffixe _test au nom de base
+          # (doctrine.yaml dbname_suffix) : ancf_transport → ancf_transport_test
+          DATABASE_URL: mysql://ancf_user:ancf_pass@127.0.0.1:3306/ancf_transport
           JWT_SECRET_KEY: config/jwt/private.pem
           JWT_PUBLIC_KEY: config/jwt/public.pem
           JWT_PASSPHRASE: test_passphrase
           APP_ENV: test
         run: |
-          php bin/console doctrine:migrations:migrate --no-interaction --env=test 2>/dev/null || true
+          php bin/console doctrine:migrations:migrate --no-interaction --env=test
           vendor/bin/phpunit --coverage-text --coverage-clover=coverage.xml
 
       - name: Upload coverage
