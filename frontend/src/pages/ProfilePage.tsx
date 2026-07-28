@@ -12,7 +12,7 @@ export function ProfilePage() {
     firstName: user?.firstName ?? '',
     lastName: user?.lastName ?? '',
   })
-  const [pwdForm, setPwdForm] = useState({ current: '', next: '' })
+  const [pwdForm, setPwdForm] = useState({ current: '', next: '', confirm: '' })
   const [deletePassword, setDeletePassword] = useState('')
 
   const [profileMsg, setProfileMsg] = useState('')
@@ -38,17 +38,23 @@ export function ProfilePage() {
   const changePassword = async (e: FormEvent) => {
     e.preventDefault()
     if (pwdForm.next.length < 8) { setPwdMsg('8 caractères minimum.'); return }
+    if (pwdForm.next !== pwdForm.confirm) { setPwdMsg('Les deux mots de passe ne correspondent pas.'); return }
     setLoading(true)
     setPwdMsg('')
     try {
       await authService.changePassword(pwdForm.current, pwdForm.next)
       setPwdMsg('Mot de passe modifié.')
-      setPwdForm({ current: '', next: '' })
+      setPwdForm({ current: '', next: '', confirm: '' })
     } catch {
       setPwdMsg('Mot de passe actuel incorrect.')
     } finally {
       setLoading(false)
     }
+  }
+
+  const closeDeletePanel = () => {
+    setShowDelete(false)
+    setDeletePassword('')
   }
 
   const deleteAccount = async () => {
@@ -58,7 +64,7 @@ export function ProfilePage() {
       logout()
       navigate('/')
     } catch {
-      setShowDelete(false)
+      closeDeletePanel()
       alert('Mot de passe incorrect.')
     } finally {
       setLoading(false)
@@ -130,6 +136,15 @@ export function ProfilePage() {
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
             />
           </div>
+          <div>
+            <label className="mb-1 block text-sm text-gray-600">Confirmer le nouveau mot de passe</label>
+            <input
+              type="password"
+              value={pwdForm.confirm}
+              onChange={(e) => setPwdForm((f) => ({ ...f, confirm: e.target.value }))}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            />
+          </div>
           {pwdMsg && <p className="text-sm text-green-600">{pwdMsg}</p>}
           <button
             type="submit"
@@ -174,7 +189,7 @@ export function ProfilePage() {
                 Confirmer la suppression
               </button>
               <button
-                onClick={() => setShowDelete(false)}
+                onClick={closeDeletePanel}
                 className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
               >
                 Annuler
