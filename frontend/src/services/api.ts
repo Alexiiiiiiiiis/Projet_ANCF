@@ -17,11 +17,14 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// Handle 401 globally
+// Handle 401 globally — mais seulement pour une session expirée/invalide, pas pour un
+// login qui échoue simplement (login_check renvoie aussi 401 sur un mauvais mot de passe :
+// rediriger dans ce cas empêcherait LoginPage d'afficher son message d'erreur inline).
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const isLoginAttempt = error.config?.url?.includes('/auth/login_check')
+    if (error.response?.status === 401 && !isLoginAttempt) {
       localStorage.removeItem('ancf_token')
       localStorage.removeItem('ancf_user')
       window.location.href = '/connexion'
