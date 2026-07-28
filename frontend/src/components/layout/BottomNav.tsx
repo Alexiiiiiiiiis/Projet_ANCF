@@ -22,6 +22,7 @@ export function BottomNav() {
     <nav className="fixed bottom-0 left-0 right-0 z-50 flex justify-around border-t bg-white pb-safe md:hidden">
       <NavItem to="/" icon="🏠" label="Accueil" />
       <NavItem to="/carte" icon="🗺️" label="Carte" />
+      <NavItem to="/itineraire" icon="🧭" label="Itinéraire" />
       <NavItem to="/alertes" icon="⚠️" label="Alertes" />
       {user ? (
         <NavItem to="/favoris" icon="⭐" label="Favoris" />
