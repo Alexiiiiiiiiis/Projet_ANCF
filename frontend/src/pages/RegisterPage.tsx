@@ -9,6 +9,7 @@ export function RegisterPage() {
   const navigate = useNavigate()
 
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '' })
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -19,6 +20,10 @@ export function RegisterPage() {
     e.preventDefault()
     if (form.password.length < 8) {
       setError('Le mot de passe doit contenir au moins 8 caractères.')
+      return
+    }
+    if (form.password !== confirmPassword) {
+      setError('Les deux mots de passe ne correspondent pas.')
       return
     }
     setError('')
@@ -89,6 +94,17 @@ export function RegisterPage() {
               onChange={set('password')}
               className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               placeholder="8 caractères minimum"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Confirmer le mot de passe</label>
+            <input
+              type="password"
+              required
+              minLength={8}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </div>
           <button
