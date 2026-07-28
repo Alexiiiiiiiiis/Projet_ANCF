@@ -23,6 +23,7 @@ export function Navbar() {
         <nav className="hidden items-center gap-6 text-sm font-medium text-gray-600 md:flex">
           <Link to="/" className="hover:text-blue-700 transition-colors">Accueil</Link>
           <Link to="/carte" className="hover:text-blue-700 transition-colors">Carte</Link>
+          <Link to="/itineraire" className="hover:text-blue-700 transition-colors">Itinéraire</Link>
           <Link to="/alertes" className="hover:text-blue-700 transition-colors">Alertes</Link>
           {user && (
             <Link to="/favoris" className="hover:text-blue-700 transition-colors">Favoris</Link>
