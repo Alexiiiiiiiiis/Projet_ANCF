@@ -13,7 +13,8 @@ class ScheduleController extends AbstractController
 {
     public function __construct(
         private readonly IdfmApiService $idfmApi,
-    ) {}
+    ) {
+    }
 
     #[Route('/{stopId}', name: 'schedules_departures', methods: ['GET'])]
     public function departures(string $stopId, Request $request): JsonResponse
