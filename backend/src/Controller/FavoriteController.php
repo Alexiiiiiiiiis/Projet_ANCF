@@ -21,7 +21,8 @@ class FavoriteController extends AbstractController
         private readonly EntityManagerInterface $em,
         private readonly FavoriteStopRepository $favoriteRepo,
         private readonly ValidatorInterface $validator,
-    ) {}
+    ) {
+    }
 
     #[Route('', name: 'favorites_list', methods: ['GET'])]
     public function list(#[CurrentUser] ?User $user): JsonResponse
@@ -34,7 +35,7 @@ class FavoriteController extends AbstractController
 
         return $this->json([
             'count' => count($favorites),
-            'favorites' => array_map(fn(FavoriteStop $f) => $f->toArray(), $favorites),
+            'favorites' => array_map(fn (FavoriteStop $f) => $f->toArray(), $favorites),
         ]);
     }
 
@@ -47,8 +48,19 @@ class FavoriteController extends AbstractController
 
         $data = json_decode($request->getContent(), true) ?? [];
 
+        $stopId = $data['stopId'] ?? '';
+        $stopName = $data['stopName'] ?? '';
+        $lineCode = $data['lineCode'] ?? '';
+        $transportType = $data['transportType'] ?? 'BUS';
+
+        // Un champ non scalaire (ex. {"stopId": ["x"]}) ferait planter les setters typés
+        // (string) ci-dessous avec une TypeError non interceptée → 500 au lieu d'un 400 propre.
+        if (!is_string($stopId) || !is_string($stopName) || !is_string($lineCode) || !is_string($transportType)) {
+            return $this->json(['error' => 'Champs invalides.'], Response::HTTP_BAD_REQUEST);
+        }
+
         // Check duplicate
-        $existing = $this->favoriteRepo->findOneByUserAndStop($user, $data['stopId'] ?? '');
+        $existing = $this->favoriteRepo->findOneByUserAndStop($user, $stopId);
         if ($existing) {
             return $this->json(['error' => 'Cet arrêt est déjà dans vos favoris.'], Response::HTTP_CONFLICT);
         }
@@ -57,10 +69,10 @@ class FavoriteController extends AbstractController
 
         $favorite = new FavoriteStop();
         $favorite->setUser($user)
-                 ->setStopId($data['stopId'] ?? '')
-                 ->setStopName($data['stopName'] ?? '')
-                 ->setLineCode($data['lineCode'] ?? '')
-                 ->setTransportType(strtoupper($data['transportType'] ?? 'BUS'))
+                 ->setStopId($stopId)
+                 ->setStopName($stopName)
+                 ->setLineCode($lineCode)
+                 ->setTransportType(strtoupper($transportType))
                  ->setSortOrder($maxOrder + 1);
 
         $errors = $this->validator->validate($favorite);
@@ -69,6 +81,7 @@ class FavoriteController extends AbstractController
             foreach ($errors as $error) {
                 $errorMessages[] = $error->getMessage();
             }
+
             return $this->json(['errors' => $errorMessages], Response::HTTP_BAD_REQUEST);
         }
 
@@ -111,9 +124,15 @@ class FavoriteController extends AbstractController
         }
 
         $data = json_decode($request->getContent(), true) ?? [];
-        $newOrder = (int) ($data['sortOrder'] ?? 0);
+        $rawOrder = $data['sortOrder'] ?? 0;
 
-        $favorite->setSortOrder($newOrder);
+        // sortOrder est stocké en SMALLINT (-32768..32767) : une valeur hors bornes
+        // ferait planter le flush avec une exception DBAL non interceptée (500).
+        if (!is_numeric($rawOrder) || (int) $rawOrder < -32768 || (int) $rawOrder > 32767) {
+            return $this->json(['error' => 'sortOrder invalide.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $favorite->setSortOrder((int) $rawOrder);
         $this->em->flush();
 
         return $this->json($favorite->toArray());
