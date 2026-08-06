@@ -3,7 +3,7 @@ import { useDebounce } from '../../hooks/useDebounce'
 import { useQuery } from '@tanstack/react-query'
 import { transportService } from '../../services/transportService'
 import type { Stop } from '../../types/transport'
-import { TRANSPORT_COLORS, TRANSPORT_LABELS } from '../../types/transport'
+import { TRANSPORT_COLORS, TRANSPORT_ICONS, TRANSPORT_LABELS } from '../../types/transport'
 
 interface SearchBarProps {
   onSelect: (stop: Stop) => void
@@ -72,10 +72,11 @@ export function SearchBar({ onSelect, placeholder = 'Rechercher un arrêt...', t
                 onMouseDown={() => handleSelect(stop)}
               >
                 <span
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm"
                   style={{ backgroundColor: TRANSPORT_COLORS[stop.transportType] }}
+                  title={TRANSPORT_LABELS[stop.transportType]}
                 >
-                  {TRANSPORT_LABELS[stop.transportType]}
+                  {TRANSPORT_ICONS[stop.transportType]}
                 </span>
                 <span className="flex-1 font-medium text-gray-800">{stop.name}</span>
                 {stop.lines && stop.lines.length > 0 && (
