@@ -1,5 +1,5 @@
 import type { Stop } from '../../types/transport'
-import { TRANSPORT_COLORS, TRANSPORT_LABELS } from '../../types/transport'
+import { TRANSPORT_COLORS, TRANSPORT_ICONS, TRANSPORT_LABELS } from '../../types/transport'
 
 interface StopCardProps {
   stop: Stop
@@ -16,10 +16,12 @@ export function StopCard({ stop, onClick, isFavorite, onToggleFavorite, distance
       onClick={onClick}
     >
       <div
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full font-bold text-white"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl"
         style={{ backgroundColor: TRANSPORT_COLORS[stop.transportType] }}
+        title={TRANSPORT_LABELS[stop.transportType]}
+        aria-label={TRANSPORT_LABELS[stop.transportType]}
       >
-        {TRANSPORT_LABELS[stop.transportType]}
+        {TRANSPORT_ICONS[stop.transportType]}
       </div>
 
       <div className="min-w-0 flex-1">
