@@ -41,18 +41,75 @@ class ApiLog
         $this->createdAt = new \DateTimeImmutable();
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getEndpoint(): ?string { return $this->endpoint; }
-    public function setEndpoint(string $endpoint): static { $this->endpoint = $endpoint; return $this; }
-    public function getHttpMethod(): ?string { return $this->httpMethod; }
-    public function setHttpMethod(string $httpMethod): static { $this->httpMethod = $httpMethod; return $this; }
-    public function getStatusCode(): ?int { return $this->statusCode; }
-    public function setStatusCode(int $statusCode): static { $this->statusCode = $statusCode; return $this; }
-    public function getResponseTimeMs(): int { return $this->responseTimeMs; }
-    public function setResponseTimeMs(int $responseTimeMs): static { $this->responseTimeMs = $responseTimeMs; return $this; }
-    public function getErrorMessage(): ?string { return $this->errorMessage; }
-    public function setErrorMessage(?string $errorMessage): static { $this->errorMessage = $errorMessage; return $this; }
-    public function getCreatedAt(): ?\DateTimeImmutable { return $this->createdAt; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+
+    public function getEndpoint(): ?string
+    {
+        return $this->endpoint;
+    }
+
+    public function setEndpoint(string $endpoint): static
+    {
+        $this->endpoint = $endpoint;
+
+        return $this;
+    }
+
+    public function getHttpMethod(): ?string
+    {
+        return $this->httpMethod;
+    }
+
+    public function setHttpMethod(string $httpMethod): static
+    {
+        $this->httpMethod = $httpMethod;
+
+        return $this;
+    }
+
+    public function getStatusCode(): ?int
+    {
+        return $this->statusCode;
+    }
+
+    public function setStatusCode(int $statusCode): static
+    {
+        $this->statusCode = $statusCode;
+
+        return $this;
+    }
+
+    public function getResponseTimeMs(): int
+    {
+        return $this->responseTimeMs;
+    }
+
+    public function setResponseTimeMs(int $responseTimeMs): static
+    {
+        $this->responseTimeMs = $responseTimeMs;
+
+        return $this;
+    }
+
+    public function getErrorMessage(): ?string
+    {
+        return $this->errorMessage;
+    }
+
+    public function setErrorMessage(?string $errorMessage): static
+    {
+        $this->errorMessage = $errorMessage;
+
+        return $this;
+    }
+
+    public function getCreatedAt(): ?\DateTimeImmutable
+    {
+        return $this->createdAt;
+    }
 
     public function toArray(): array
     {
