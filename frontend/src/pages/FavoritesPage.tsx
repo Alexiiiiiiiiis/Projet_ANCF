@@ -3,12 +3,13 @@ import { transportService } from '../services/transportService'
 import { useSchedules } from '../hooks/useSchedules'
 import { ScheduleRow } from '../components/schedules/ScheduleRow'
 import { Spinner } from '../components/ui/Spinner'
-import { TRANSPORT_COLORS, TRANSPORT_LABELS } from '../types/transport'
+import { TRANSPORT_COLORS, TRANSPORT_ICONS, TRANSPORT_LABELS } from '../types/transport'
 import { useState } from 'react'
 
 export function FavoritesPage() {
   const queryClient = useQueryClient()
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [removeError, setRemoveError] = useState<string | null>(null)
 
   const { data: favorites = [], isLoading } = useQuery({
     queryKey: ['favorites'],
@@ -17,7 +18,11 @@ export function FavoritesPage() {
 
   const removeMutation = useMutation({
     mutationFn: transportService.removeFavorite,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['favorites'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['favorites'] })
+      setRemoveError(null)
+    },
+    onError: () => setRemoveError('Impossible de retirer ce favori. Réessayez.'),
   })
 
   const { data: schedules } = useSchedules(expandedId)
@@ -28,6 +33,13 @@ export function FavoritesPage() {
         <h1 className="text-2xl font-bold text-gray-900">Mes favoris</h1>
         <p className="text-sm text-gray-500 mt-1">Vos arrêts enregistrés</p>
       </div>
+
+      {removeError && (
+        <div className="flex items-center justify-between rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>{removeError}</span>
+          <button onClick={() => setRemoveError(null)} className="ml-3 text-red-400 hover:text-red-600" aria-label="Fermer">✕</button>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center py-12">
@@ -47,10 +59,11 @@ export function FavoritesPage() {
                 onClick={() => setExpandedId(expandedId === fav.stopId ? null : fav.stopId)}
               >
                 <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-bold text-white text-sm"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg"
                   style={{ backgroundColor: TRANSPORT_COLORS[fav.transportType] }}
+                  title={TRANSPORT_LABELS[fav.transportType]}
                 >
-                  {TRANSPORT_LABELS[fav.transportType]}
+                  {TRANSPORT_ICONS[fav.transportType]}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900 truncate">{fav.stopName}</p>
@@ -72,7 +85,7 @@ export function FavoritesPage() {
                 <div className="border-t px-4 pb-4 pt-2 space-y-2">
                   {schedules?.departures && schedules.departures.length > 0 ? (
                     schedules.departures.slice(0, 4).map((dep, i) => (
-                      <ScheduleRow key={i} departure={dep} />
+                      <ScheduleRow key={`${dep.lineCode}-${dep.direction}-${dep.waitMinutes}-${i}`} departure={dep} />
                     ))
                   ) : (
                     <div className="flex justify-center py-3">
