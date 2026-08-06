@@ -62,6 +62,7 @@ export function AdminPage() {
   const queryClient = useQueryClient()
   const [editingParam, setEditingParam] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['admin-stats'],
@@ -99,7 +100,11 @@ export function AdminPage() {
 
   const toggleMutation = useMutation({
     mutationFn: (userId: number) => api.put(`/admin/users/${userId}/toggle`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-users'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+      setActionError(null)
+    },
+    onError: () => setActionError('Impossible de modifier le statut de cet utilisateur. Réessayez.'),
   })
 
   const updateParamMutation = useMutation({
@@ -108,7 +113,9 @@ export function AdminPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-params'] })
       setEditingParam(null)
+      setActionError(null)
     },
+    onError: () => setActionError('Impossible d\'enregistrer ce paramètre. Réessayez.'),
   })
 
   const startEdit = (param: SystemParam) => {
@@ -124,19 +131,66 @@ export function AdminPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Administration</h1>
 
+      {actionError && (
+        <div className="flex items-center justify-between rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>{actionError}</span>
+          <button onClick={() => setActionError(null)} className="ml-3 text-red-400 hover:text-red-600" aria-label="Fermer">✕</button>
+        </div>
+      )}
+
       {statsLoading ? (
         <div className="flex justify-center py-8">
           <Spinner size="lg" />
         </div>
       ) : stats && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-          <StatCard label="Utilisateurs" value={stats.totalUsers} icon="👥" />
-          <StatCard label="Requêtes aujourd'hui" value={stats.requestsPerDay} icon="📊" />
-          <StatCard label="Erreurs aujourd'hui" value={stats.errorsToday} icon="⚠️" />
-          <StatCard label="Alertes actives" value={stats.activeAlerts} icon="🚨" />
-          <StatCard label="Temps de réponse moy." value={`${stats.avgResponseMs}ms`} icon="⚡" />
-          <StatCard label="Uptime" value={`${stats.uptime}%`} icon="✅" />
-        </div>
+        <>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            <StatCard label="Utilisateurs" value={stats.totalUsers} icon="👥" />
+            <StatCard label="Requêtes aujourd'hui" value={stats.requestsPerDay} icon="📊" />
+            <StatCard label="Erreurs aujourd'hui" value={stats.errorsToday} icon="⚠️" />
+            <StatCard label="Alertes actives" value={stats.activeAlerts} icon="🚨" />
+            <StatCard label="Temps de réponse moy." value={`${stats.avgResponseMs}ms`} icon="⚡" />
+            <StatCard label="Uptime" value={`${stats.uptime}%`} icon="✅" />
+          </div>
+
+          {/* F7.3 — quota de l'API externe IDFM, pas seulement les erreurs internes */}
+          <div className="rounded-xl bg-white p-5 shadow-sm">
+            {stats.apiQuota ? (
+              (() => {
+                const { remaining, limit, checkedAt } = stats.apiQuota
+                const ratio = limit > 0 ? remaining / limit : 0
+                const color = ratio < 0.1 ? 'text-red-600' : ratio < 0.3 ? 'text-orange-500' : 'text-gray-900'
+                const barColor = ratio < 0.1 ? 'bg-red-500' : ratio < 0.3 ? 'bg-orange-400' : 'bg-green-500'
+                return (
+                  <>
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">🔌 Quota API IDFM (PRIM)</span>
+                      <span className="text-xs text-gray-400">
+                        Vérifié à {new Date(checkedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div className="mb-2 flex items-baseline gap-1.5">
+                      <span className={`text-xl font-bold ${color}`}>{remaining}</span>
+                      <span className="text-sm text-gray-400">/ {limit} requêtes restantes aujourd'hui</span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+                      <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.max(0, Math.min(100, ratio * 100))}%` }} />
+                    </div>
+                    {ratio < 0.1 && (
+                      <p className="mt-2 text-xs text-red-600">
+                        Quota presque épuisé — l'application va bientôt basculer sur des données de secours.
+                      </p>
+                    )}
+                  </>
+                )
+              })()
+            ) : (
+              <p className="text-sm text-gray-400">
+                🔌 Quota API IDFM : pas encore mesuré (aucun appel réel effectué depuis le dernier redémarrage du cache).
+              </p>
+            )}
+          </div>
+        </>
       )}
 
       <div className="rounded-2xl bg-white p-5 shadow-sm">
