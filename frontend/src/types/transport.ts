@@ -39,6 +39,26 @@ export interface TrafficAlert {
   endDate?: string | null
 }
 
+export interface JourneySection {
+  type: string
+  mode: TransportType | 'WALK'
+  lineCode: string | null
+  direction: string | null
+  from: string | null
+  to: string | null
+  departureTime: string | null
+  arrivalTime: string | null
+  durationMinutes: number
+}
+
+export interface Journey {
+  departureTime: string | null
+  arrivalTime: string | null
+  durationMinutes: number
+  transfers: number
+  sections: JourneySection[]
+}
+
 export interface FavoriteStop {
   id: number
   stopId: string
@@ -59,6 +79,12 @@ export interface User {
   createdAt: string
 }
 
+export interface ApiQuotaStatus {
+  remaining: number
+  limit: number
+  checkedAt: string
+}
+
 export interface AdminStats {
   totalUsers: number
   requestsPerDay: number
@@ -66,6 +92,7 @@ export interface AdminStats {
   activeAlerts: number
   errorsToday: number
   avgResponseMs: number
+  apiQuota: ApiQuotaStatus | null
 }
 
 export interface AdminUser extends User {
@@ -86,16 +113,28 @@ export const TRANSPORT_LABELS: Record<TransportType, string> = {
   BUS:   'Bus',
 }
 
+// Icônes utilisées dans les badges ronds (à la place du nom en texte, qui se coupait
+// mal dans un petit cercle — ex. "Métro" sur deux lignes) : plus lisible, plus rapide
+// à distinguer d'un coup d'œil, la couleur du badge suffit ensuite à confirmer le mode.
+export const TRANSPORT_ICONS: Record<TransportType, string> = {
+  METRO: '🚇',
+  RER:   '🚆',
+  TRAM:  '🚊',
+  BUS:   '🚌',
+}
+
 export const SEVERITY_COLORS: Record<AlertSeverity, string> = {
   MAJOR:    '#DE350B',
   MODERATE: '#FF991F',
   INFO:     '#0052CC',
 }
 
+// F4.3 du cahier des charges : "mineur, modéré, majeur" — INFO est le niveau le plus bas
+// (perturbation mineure), mais on garde le code interne INFO pour ne pas casser l'API.
 export const SEVERITY_LABELS: Record<AlertSeverity, string> = {
   MAJOR:    'MAJEUR',
   MODERATE: 'MODÉRÉ',
-  INFO:     'INFO',
+  INFO:     'MINEUR',
 }
 
 export const CATEGORY_LABELS: Record<AlertCategory, string> = {
