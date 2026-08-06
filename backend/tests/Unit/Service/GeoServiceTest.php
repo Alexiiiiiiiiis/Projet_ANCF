@@ -66,4 +66,24 @@ class GeoServiceTest extends TestCase
         $this->assertSame('1.2km', $this->geoService->formatDistance(1234));
         $this->assertSame('2.5km', $this->geoService->formatDistance(2500));
     }
+
+    public function testEstimateWalkingDistanceAppliesDetourFactor(): void
+    {
+        $straightLine = $this->geoService->calculateDistance(48.8566, 2.3522, 48.8588, 2.3510);
+        $walking = $this->geoService->estimateWalkingDistance(48.8566, 2.3522, 48.8588, 2.3510);
+
+        $this->assertGreaterThan($straightLine, $walking, 'La distance de marche estimée doit être supérieure au vol d\'oiseau');
+        $this->assertEqualsWithDelta($straightLine * 1.3, $walking, 0.01);
+    }
+
+    public function testApplyWalkingDetourFactorToKnownDistance(): void
+    {
+        $this->assertEqualsWithDelta(650.0, $this->geoService->applyWalkingDetourFactor(500), 0.01);
+    }
+
+    public function testEstimateWalkingDistanceSamePointIsZero(): void
+    {
+        $walking = $this->geoService->estimateWalkingDistance(48.8566, 2.3522, 48.8566, 2.3522);
+        $this->assertEqualsWithDelta(0.0, $walking, 0.001);
+    }
 }
