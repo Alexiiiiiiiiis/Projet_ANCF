@@ -9,6 +9,8 @@ jobs:
   deploy:
     name: Build & Push Docker Images
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
