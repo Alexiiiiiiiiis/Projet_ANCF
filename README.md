@@ -105,16 +105,17 @@ projet/
 
 ## Écarts par rapport au cahier des charges (CDC V4)
 
-Le CDC (§4.2) nomme des technologies précises pour trois choix techniques. Chacun a été
+Le CDC (§4.2) nomme des technologies précises pour quatre choix techniques. Chacun a été
 volontairement remplacé par un équivalent fonctionnel, justifié ci-dessous plutôt que suivi à la
 lettre — les objectifs qu'ils servent (API RESTful testée, UI réactive et cohérente, tests
-automatisés) restent pleinement atteints.
+automatisés, cartographie interactive) restent pleinement atteints.
 
 | Exigé (CDC) | Implémenté | Pourquoi |
 |---|---|---|
 | Material-UI ou Bootstrap React | **Tailwind CSS** | Contrôle plus fin, bundle plus léger qu'un framework de composants complet ; l'appli n'a besoin d'aucun composant préfabriqué complexe (data grid, date picker...), juste d'une mise en page cohérente. |
 | Jest | **Vitest** | Le frontend est bâti avec Vite : Vitest partage sa config/transformation avec le build de dev, expose une API quasi identique à Jest, et s'intègre nativement — c'est le choix recommandé par l'écosystème Vite lui-même plutôt que d'ajouter un second toolchain de test. |
 | API Platform ou FOSRestBundle | Contrôleurs Symfony classiques (`AbstractController` + `JsonResponse`) | FOSRestBundle n'est plus activement maintenu. API Platform apporte une couche de génération automatique (OpenAPI, sérialisation par groupes, filtres) disproportionnée pour une douzaine d'endpoints REST simples, et rend plus difficile d'y intégrer la logique métier spécifique du projet (cache, mode dégradé, agrégations). Les contrôleurs classiques produisent une API RESTful tout aussi conforme, et plus lisible à cette échelle. |
+| Google Maps ou Mapbox | **Leaflet + OpenStreetMap** | Le CDC cite lui-même OpenStreetMap (§5.2) comme mitigation au risque de quota gratuit limité de Mapbox — plutôt que d'introduire cette dépendance puis la contourner, le projet part directement sur Leaflet/OSM : ni clé API ni quota à surveiller, alors que le projet en gère déjà un (IDFM, cf. `/api/admin/stats.apiQuota`) et a appris à ses dépens ce que ça implique. |
 
 Deux exigences fonctionnelles méritent aussi une précision sur la façon dont elles sont couvertes :
 
