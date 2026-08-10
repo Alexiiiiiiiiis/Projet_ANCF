@@ -24,6 +24,7 @@ class SystemParameterRepository extends ServiceEntityRepository
     public function getValue(string $key, string $default = ''): string
     {
         $param = $this->findByKey($key);
+
         return $param?->getParamValue() ?? $default;
     }
 }

@@ -45,6 +45,7 @@ security:
         - { path: ^/api/stops, roles: PUBLIC_ACCESS }
         - { path: ^/api/schedules, roles: PUBLIC_ACCESS }
         - { path: ^/api/alerts, roles: PUBLIC_ACCESS }
+        - { path: ^/api/journeys, roles: PUBLIC_ACCESS }
         - { path: ^/api/admin, roles: ROLE_ADMIN }
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
 

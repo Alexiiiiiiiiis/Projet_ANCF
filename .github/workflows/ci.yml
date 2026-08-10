@@ -56,7 +56,11 @@ jobs:
 
       - name: PHPStan static analysis (level 5)
         working-directory: backend
-        run: vendor/bin/phpstan analyse src --level=5 --no-progress 2>/dev/null || true
+        run: vendor/bin/phpstan analyse src --level=5 --no-progress
+
+      - name: Code style (PSR-12 / PHP-CS-Fixer, non bloquant)
+        working-directory: backend
+        run: composer cs-check || true
 
       - name: Generate JWT keys
         working-directory: backend
@@ -65,7 +69,7 @@ jobs:
           openssl genrsa -out config/jwt/private.pem 4096
           openssl rsa -pubout -in config/jwt/private.pem -out config/jwt/public.pem
 
-      - name: Run PHPUnit tests
+      - name: Run database migrations (test env)
         working-directory: backend
         env:
           # En env test, Doctrine ajoute le suffixe _test au nom de base
@@ -75,9 +79,29 @@ jobs:
           JWT_PUBLIC_KEY: config/jwt/public.pem
           JWT_PASSPHRASE: test_passphrase
           APP_ENV: test
-        run: |
-          php bin/console doctrine:migrations:migrate --no-interaction --env=test
-          vendor/bin/phpunit --coverage-text --coverage-clover=coverage.xml
+        run: php bin/console doctrine:migrations:migrate --no-interaction --env=test
+
+      - name: Tests unitaires
+        working-directory: backend
+        env:
+          DATABASE_URL: mysql://ancf_user:ancf_pass@127.0.0.1:3306/ancf_transport
+          JWT_SECRET_KEY: config/jwt/private.pem
+          JWT_PUBLIC_KEY: config/jwt/public.pem
+          JWT_PASSPHRASE: test_passphrase
+          APP_ENV: test
+        run: vendor/bin/phpunit --testsuite=Unit
+
+      - name: Tests d'intégration
+        working-directory: backend
+        env:
+          # Suite Functional : contrôleurs testés à travers le kernel Symfony,
+          # avec une vraie base de données (intégration ORM + routing + sécurité).
+          DATABASE_URL: mysql://ancf_user:ancf_pass@127.0.0.1:3306/ancf_transport
+          JWT_SECRET_KEY: config/jwt/private.pem
+          JWT_PUBLIC_KEY: config/jwt/public.pem
+          JWT_PASSPHRASE: test_passphrase
+          APP_ENV: test
+        run: vendor/bin/phpunit --testsuite=Functional --coverage-text --coverage-clover=coverage.xml
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -112,11 +136,11 @@ jobs:
 
       - name: ESLint
         working-directory: frontend
-        run: npm run lint 2>/dev/null || true
+        run: npm run lint
 
       - name: Run tests
         working-directory: frontend
-        run: npm test -- --run 2>/dev/null || true
+        run: npm test -- --run
 
       - name: Build
         working-directory: frontend

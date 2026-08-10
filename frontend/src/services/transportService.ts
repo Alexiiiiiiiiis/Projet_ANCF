@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { Stop, Departure, TrafficAlert, FavoriteStop } from '../types/transport'
+import type { Stop, Departure, TrafficAlert, FavoriteStop, Journey } from '../types/transport'
 
 export interface StopSearchParams {
   q: string
@@ -23,6 +23,18 @@ export interface ScheduleResponse {
 
 export interface AlertsResponse {
   alerts: TrafficAlert[]
+  count: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
+export interface JourneysResponse {
+  from: string
+  to: string
+  fetchedAt: string
+  count: number
+  journeys: Journey[]
 }
 
 export const transportService = {
@@ -51,14 +63,19 @@ export const transportService = {
     return data.queries
   },
 
-  async getAlerts(params?: { lineId?: string; severity?: string; type?: string; category?: string }): Promise<TrafficAlert[]> {
+  async getAlerts(params?: { lineId?: string; severity?: string; type?: string; category?: string; page?: number; limit?: number }): Promise<AlertsResponse> {
     const { data } = await api.get<AlertsResponse>('/alerts', { params })
-    return data.alerts
+    return data
   },
 
   async getLineAlerts(lineId: string): Promise<TrafficAlert[]> {
     const { data } = await api.get<AlertsResponse>(`/alerts/${lineId}`)
     return data.alerts
+  },
+
+  async searchJourneys(from: string, to: string, fromName?: string, toName?: string): Promise<JourneysResponse> {
+    const { data } = await api.get<JourneysResponse>('/journeys', { params: { from, to, fromName, toName } })
+    return data
   },
 
   // Favorites

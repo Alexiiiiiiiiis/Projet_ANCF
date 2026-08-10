@@ -31,6 +31,7 @@ class SearchHistoryRepository extends ServiceEntityRepository
     public function countRequestsToday(): int
     {
         $today = new \DateTimeImmutable('today');
+
         return (int) $this->createQueryBuilder('s')
             ->select('COUNT(s.id)')
             ->andWhere('s.createdAt >= :today')

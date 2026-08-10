@@ -13,7 +13,8 @@ class ApiLogListener
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-    ) {}
+    ) {
+    }
 
     public function __invoke(TerminateEvent $event): void
     {
@@ -26,7 +27,7 @@ class ApiLogListener
         }
 
         // Exclude the login endpoint to avoid logging credentials
-        if ($path === '/api/auth/login_check') {
+        if ('/api/auth/login_check' === $path) {
             return;
         }
 
@@ -35,7 +36,7 @@ class ApiLogListener
 
         // Calculate response time from the PHP request start time
         $startTime = $_SERVER['REQUEST_TIME_FLOAT'] ?? null;
-        $responseTimeMs = $startTime !== null
+        $responseTimeMs = null !== $startTime
             ? (int) round((microtime(true) - (float) $startTime) * 1000)
             : 0;
 
@@ -45,13 +46,13 @@ class ApiLogListener
         $errorMessage = null;
         if ($statusCode >= 400) {
             $content = $response->getContent();
-            if ($content !== false && $content !== '') {
+            if (false !== $content && '' !== $content) {
                 $decoded = json_decode($content, true);
                 if (is_array($decoded)) {
                     $errorMessage = $decoded['message'] ?? $decoded['detail'] ?? $decoded['error'] ?? null;
                 }
                 // Fall back to raw content (capped) if no structured message found
-                if ($errorMessage === null) {
+                if (null === $errorMessage) {
                     $errorMessage = mb_substr($content, 0, 500);
                 }
             }

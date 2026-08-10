@@ -15,8 +15,13 @@ export function MapPage() {
   const { lat, lon } = useGeolocation()
   const [selectedStop, setSelectedStop] = useState<Stop | null>(null)
 
+  // Le GPS renvoie une position légèrement différente à chaque mise à jour (watchPosition) :
+  // arrondir à ~111m près évite de relancer une requête réseau à chaque micro-mouvement.
+  const roundedLat = lat !== null ? Math.round(lat * 1000) / 1000 : null
+  const roundedLon = lon !== null ? Math.round(lon * 1000) / 1000 : null
+
   const { data: stops = [], isLoading } = useQuery({
-    queryKey: ['nearby-map', lat, lon],
+    queryKey: ['nearby-map', roundedLat, roundedLon],
     queryFn: () => transportService.getNearbyStops({ lat: lat!, lon: lon!, radius: 1000 }),
     enabled: !!(lat && lon),
     staleTime: 120_000,
@@ -57,7 +62,7 @@ export function MapPage() {
           {schedules?.departures && schedules.departures.length > 0 ? (
             <div className="space-y-2">
               {schedules.departures.slice(0, 5).map((dep, i) => (
-                <ScheduleRow key={i} departure={dep} />
+                <ScheduleRow key={`${dep.lineCode}-${dep.direction}-${dep.waitMinutes}-${i}`} departure={dep} />
               ))}
             </div>
           ) : (

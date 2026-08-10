@@ -6,7 +6,6 @@ use App\Entity\SearchHistory;
 use App\Entity\User;
 use App\Repository\SearchHistoryRepository;
 use App\Service\IdfmApiService;
-use App\Service\GeoService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -20,16 +19,16 @@ class StopController extends AbstractController
 {
     public function __construct(
         private readonly IdfmApiService $idfmApi,
-        private readonly GeoService $geoService,
         private readonly EntityManagerInterface $em,
         private readonly Security $security,
-    ) {}
+    ) {
+    }
 
     #[Route('/search', name: 'stops_search', methods: ['GET'])]
     public function search(Request $request): JsonResponse
     {
         $query = trim($request->query->getString('q', ''));
-        $type  = $request->query->get('type');
+        $type = $request->query->get('type');
         $limit = min((int) $request->query->get('limit', 10), 20);
 
         if (strlen($query) < 2) {
@@ -38,9 +37,10 @@ class StopController extends AbstractController
 
         $stops = $this->idfmApi->searchStops($query, $type, $limit);
 
+        $user = $this->security->getUser();
         $history = (new SearchHistory())
             ->setSearchQuery($query)
-            ->setUser($this->security->getUser())
+            ->setUser($user instanceof User ? $user : null)
             ->setResultCount(count($stops));
         $this->em->persist($history);
         $this->em->flush();
@@ -55,12 +55,12 @@ class StopController extends AbstractController
     #[Route('/nearby', name: 'stops_nearby', methods: ['GET'])]
     public function nearby(Request $request): JsonResponse
     {
-        $lat    = (float) $request->query->get('lat', 48.8566);
-        $lon    = (float) $request->query->get('lon', 2.3522);
+        $lat = (float) $request->query->get('lat', 48.8566);
+        $lon = (float) $request->query->get('lon', 2.3522);
         $radius = min((int) $request->query->get('radius', 500), 2000);
-        $type   = $request->query->get('type');
+        $type = $request->query->get('type');
 
-        if ($lat === 0.0 || $lon === 0.0) {
+        if (0.0 === $lat || 0.0 === $lon) {
             return $this->json(['error' => 'Coordonnées invalides.'], Response::HTTP_BAD_REQUEST);
         }
 

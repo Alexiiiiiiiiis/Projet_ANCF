@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { transportService } from '../services/transportService'
 import { AlertCard } from '../components/alerts/AlertCard'
 import { Spinner } from '../components/ui/Spinner'
+import { TRANSPORT_LABELS, type TransportType } from '../types/transport'
 
 const CATEGORIES = [
   { value: '', label: 'Tout' },
@@ -14,22 +15,55 @@ const SEVERITIES = [
   { value: '', label: 'Toutes' },
   { value: 'MAJOR', label: 'Majeur' },
   { value: 'MODERATE', label: 'Modéré' },
-  { value: 'INFO', label: 'Info' },
+  { value: 'INFO', label: 'Mineur' },
 ]
+
+const TYPES: { value: '' | TransportType; label: string }[] = [
+  { value: '', label: 'Tous les modes' },
+  { value: 'METRO', label: TRANSPORT_LABELS.METRO },
+  { value: 'RER', label: TRANSPORT_LABELS.RER },
+  { value: 'TRAM', label: TRANSPORT_LABELS.TRAM },
+  { value: 'BUS', label: TRANSPORT_LABELS.BUS },
+]
+
+const PAGE_SIZE = 20
 
 export function AlertsPage() {
   const [severity, setSeverity] = useState('')
   const [category, setCategory] = useState('')
+  const [type, setType] = useState<'' | TransportType>('')
+  const [page, setPage] = useState(1)
 
-  const { data: alerts = [], isLoading, error } = useQuery({
-    queryKey: ['alerts', severity, category],
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['alerts', severity, category, type, page],
     queryFn: () => transportService.getAlerts({
       ...(severity ? { severity } : {}),
       ...(category ? { category } : {}),
+      ...(type ? { type } : {}),
+      page,
+      limit: PAGE_SIZE,
     }),
     refetchInterval: 60_000,
     staleTime: 30_000,
   })
+
+  const alerts = data?.alerts ?? []
+  const totalPages = data?.totalPages ?? 1
+
+  const handleCategoryChange = (value: string) => {
+    setCategory(value)
+    setPage(1)
+  }
+
+  const handleSeverityChange = (value: string) => {
+    setSeverity(value)
+    setPage(1)
+  }
+
+  const handleTypeChange = (value: '' | TransportType) => {
+    setType(value)
+    setPage(1)
+  }
 
   return (
     <div className="space-y-6">
@@ -42,7 +76,7 @@ export function AlertsPage() {
         {CATEGORIES.map((c) => (
           <button
             key={c.value}
-            onClick={() => setCategory(c.value)}
+            onClick={() => handleCategoryChange(c.value)}
             className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
               category === c.value
                 ? 'bg-purple-700 text-white'
@@ -55,10 +89,26 @@ export function AlertsPage() {
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
+        {TYPES.map((t) => (
+          <button
+            key={t.value}
+            onClick={() => handleTypeChange(t.value)}
+            className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+              type === t.value
+                ? 'bg-emerald-700 text-white'
+                : 'bg-white text-gray-600 border border-gray-200 hover:border-emerald-300'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto pb-1">
         {SEVERITIES.map((s) => (
           <button
             key={s.value}
-            onClick={() => setSeverity(s.value)}
+            onClick={() => handleSeverityChange(s.value)}
             className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
               severity === s.value
                 ? 'bg-blue-700 text-white'
@@ -84,11 +134,35 @@ export function AlertsPage() {
           <p className="text-sm">Aucune perturbation en cours</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {alerts.map((alert) => (
-            <AlertCard key={alert.id} alert={alert} />
-          ))}
-        </div>
+        <>
+          <div className="space-y-3">
+            {alerts.map((alert) => (
+              <AlertCard key={alert.id} alert={alert} />
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 pt-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="rounded-full px-4 py-1.5 text-sm font-medium bg-white text-gray-600 border border-gray-200 disabled:opacity-40 disabled:cursor-not-allowed hover:border-purple-300"
+              >
+                Précédent
+              </button>
+              <span className="text-sm text-gray-500">
+                Page {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="rounded-full px-4 py-1.5 text-sm font-medium bg-white text-gray-600 border border-gray-200 disabled:opacity-40 disabled:cursor-not-allowed hover:border-purple-300"
+              >
+                Suivant
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

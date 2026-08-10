@@ -55,4 +55,85 @@ class FavoriteControllerTest extends WebTestCase
         );
         $this->assertResponseStatusCodeSame(401);
     }
+
+    private function authenticate(): array
+    {
+        $email = 'fav_'.uniqid().'@ancf.fr';
+        $password = 'Password123!';
+
+        $this->client->request(
+            'POST',
+            '/api/auth/register',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            json_encode(['email' => $email, 'password' => $password, 'firstName' => 'Test', 'lastName' => 'User'])
+        );
+        $this->assertResponseStatusCodeSame(201);
+
+        $this->client->request(
+            'POST',
+            '/api/auth/login_check',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            json_encode(['email' => $email, 'password' => $password])
+        );
+        $token = json_decode($this->client->getResponse()->getContent(), true)['token'];
+
+        return ['email' => $email, 'token' => $token];
+    }
+
+    public function testAddFavoriteRejectsNonStringFields(): void
+    {
+        ['token' => $token] = $this->authenticate();
+
+        $this->client->request(
+            'POST',
+            '/api/favorites',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$token],
+            json_encode([
+                'stopId' => ['not', 'a', 'string'],
+                'stopName' => 'Châtelet',
+                'lineCode' => 'M14',
+                'transportType' => 'METRO',
+            ])
+        );
+
+        $this->assertResponseStatusCodeSame(400);
+    }
+
+    public function testReorderFavoriteRejectsOutOfRangeSortOrder(): void
+    {
+        ['token' => $token] = $this->authenticate();
+
+        $this->client->request(
+            'POST',
+            '/api/favorites',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$token],
+            json_encode([
+                'stopId' => 'stop:M14:chatelet',
+                'stopName' => 'Châtelet',
+                'lineCode' => 'M14',
+                'transportType' => 'METRO',
+            ])
+        );
+        $this->assertResponseStatusCodeSame(201);
+        $favoriteId = json_decode($this->client->getResponse()->getContent(), true)['id'];
+
+        $this->client->request(
+            'PUT',
+            "/api/favorites/{$favoriteId}/reorder",
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$token],
+            json_encode(['sortOrder' => 999999999])
+        );
+
+        $this->assertResponseStatusCodeSame(400);
+    }
 }

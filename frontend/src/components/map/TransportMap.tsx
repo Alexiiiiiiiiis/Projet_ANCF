@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import type { Stop } from '../../types/transport'
@@ -28,7 +29,18 @@ function makeIcon(color: string) {
 
 function RecenterMap({ lat, lon }: { lat: number; lon: number }) {
   const map = useMap()
-  map.setView([lat, lon], map.getZoom())
+
+  // Ne recentrer que si la position a réellement bougé (~111m), pas à chaque re-render du
+  // parent (refetch react-query, poll des départs...) : sinon la vue de l'utilisateur qui a
+  // zoomé/déplacé la carte est écrasée en permanence par la position GPS.
+  const roundedLat = Math.round(lat * 1000) / 1000
+  const roundedLon = Math.round(lon * 1000) / 1000
+
+  useEffect(() => {
+    map.setView([lat, lon], map.getZoom())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roundedLat, roundedLon, map])
+
   return null
 }
 

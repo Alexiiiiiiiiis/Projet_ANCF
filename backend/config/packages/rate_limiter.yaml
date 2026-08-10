@@ -1,0 +1,27 @@
+framework:
+    rate_limiter:
+        # /register et /forgot-password n'ont pas de firewall d'authentification (accès public
+        # nécessaire), donc pas de login_throttling — sans limite dédiée, création de comptes ou
+        # spam d'emails de réinitialisation illimités depuis une même IP.
+        register_ip:
+            policy: 'sliding_window'
+            limit: 5
+            interval: '1 hour'
+        forgot_password_ip:
+            policy: 'sliding_window'
+            limit: 3
+            interval: '15 minutes'
+
+when@test:
+    framework:
+        rate_limiter:
+            # Les tests fonctionnels partagent tous la même IP (127.0.0.1) et appellent ces routes
+            # plusieurs fois par run : une limite réaliste ferait échouer la suite au-delà de quelques tests.
+            register_ip:
+                policy: 'sliding_window'
+                limit: 1000
+                interval: '1 hour'
+            forgot_password_ip:
+                policy: 'sliding_window'
+                limit: 1000
+                interval: '15 minutes'

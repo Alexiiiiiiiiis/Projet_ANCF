@@ -62,6 +62,7 @@ class FavoriteStop
     public function setUser(?User $user): static
     {
         $this->user = $user;
+
         return $this;
     }
 
@@ -73,6 +74,7 @@ class FavoriteStop
     public function setStopId(string $stopId): static
     {
         $this->stopId = $stopId;
+
         return $this;
     }
 
@@ -84,6 +86,7 @@ class FavoriteStop
     public function setStopName(string $stopName): static
     {
         $this->stopName = $stopName;
+
         return $this;
     }
 
@@ -95,6 +98,7 @@ class FavoriteStop
     public function setLineCode(string $lineCode): static
     {
         $this->lineCode = $lineCode;
+
         return $this;
     }
 
@@ -106,6 +110,7 @@ class FavoriteStop
     public function setTransportType(string $transportType): static
     {
         $this->transportType = $transportType;
+
         return $this;
     }
 
@@ -122,6 +127,7 @@ class FavoriteStop
     public function setSortOrder(int $sortOrder): static
     {
         $this->sortOrder = $sortOrder;
+
         return $this;
     }
 

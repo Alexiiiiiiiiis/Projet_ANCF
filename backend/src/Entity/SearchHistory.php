@@ -35,12 +35,49 @@ class SearchHistory
         $this->createdAt = new \DateTimeImmutable();
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getUser(): ?User { return $this->user; }
-    public function setUser(?User $user): static { $this->user = $user; return $this; }
-    public function getSearchQuery(): ?string { return $this->searchQuery; }
-    public function setSearchQuery(string $searchQuery): static { $this->searchQuery = $searchQuery; return $this; }
-    public function getResultCount(): ?int { return $this->resultCount; }
-    public function setResultCount(?int $resultCount): static { $this->resultCount = $resultCount; return $this; }
-    public function getCreatedAt(): ?\DateTimeImmutable { return $this->createdAt; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+
+    public function getUser(): ?User
+    {
+        return $this->user;
+    }
+
+    public function setUser(?User $user): static
+    {
+        $this->user = $user;
+
+        return $this;
+    }
+
+    public function getSearchQuery(): ?string
+    {
+        return $this->searchQuery;
+    }
+
+    public function setSearchQuery(string $searchQuery): static
+    {
+        $this->searchQuery = $searchQuery;
+
+        return $this;
+    }
+
+    public function getResultCount(): ?int
+    {
+        return $this->resultCount;
+    }
+
+    public function setResultCount(?int $resultCount): static
+    {
+        $this->resultCount = $resultCount;
+
+        return $this;
+    }
+
+    public function getCreatedAt(): ?\DateTimeImmutable
+    {
+        return $this->createdAt;
+    }
 }

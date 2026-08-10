@@ -22,6 +22,18 @@ const POPULAR_STOPS: Stop[] = [
   { id: 'stop_area:IDFM:71370', name: 'Gare Saint-Lazare', lat: 48.875, lon: 2.325, transportType: 'METRO', lines: ['M3', 'M12', 'M13', 'M14'] },
   { id: 'stop_area:IDFM:71045', name: 'Porte de Versailles', lat: 48.8324, lon: 2.2879, transportType: 'TRAM', lines: ['T2', 'T3a', 'M12'] },
   { id: 'stop_area:IDFM:71673', name: 'Nation', lat: 48.8488, lon: 2.3963, transportType: 'METRO', lines: ['M1', 'M2', 'M6', 'M9'] },
+
+  // RER — une entrée par ligne (A/B/D déjà couvertes par Châtelet - Les Halles ci-dessus)
+  { id: 'stop_area:IDFM:rer_defense', name: 'La Défense', lat: 48.8921, lon: 2.2391, transportType: 'RER', lines: ['RER A'] },
+  { id: 'stop_area:IDFM:rer_denfert', name: 'Denfert-Rochereau', lat: 48.8339, lon: 2.3327, transportType: 'RER', lines: ['RER B'] },
+  { id: 'stop_area:IDFM:rer_invalides', name: 'Invalides', lat: 48.8615, lon: 2.314, transportType: 'RER', lines: ['RER C'] },
+  { id: 'stop_area:IDFM:rer_lyon_d', name: 'Gare de Lyon', lat: 48.8443, lon: 2.373, transportType: 'RER', lines: ['RER D'] },
+  { id: 'stop_area:IDFM:rer_magenta', name: 'Magenta', lat: 48.8768, lon: 2.3565, transportType: 'RER', lines: ['RER E'] },
+
+  // Tram — quelques lignes supplémentaires (T2/T3a déjà couvertes par Porte de Versailles ci-dessus)
+  { id: 'stop_area:IDFM:tram_saint_denis', name: 'Marché de Saint-Denis', lat: 48.9356, lon: 2.3573, transportType: 'TRAM', lines: ['T1'] },
+  { id: 'stop_area:IDFM:tram_bondy', name: 'Bondy', lat: 48.9019, lon: 2.4795, transportType: 'TRAM', lines: ['T4'] },
+  { id: 'stop_area:IDFM:tram_athis_mons', name: 'Athis-Mons', lat: 48.7113, lon: 2.3893, transportType: 'TRAM', lines: ['T7'] },
 ]
 
 const TYPE_FILTERS: TransportType[] = ['METRO', 'RER', 'TRAM', 'BUS']
@@ -33,11 +45,17 @@ export function Home() {
   const [selectedStop, setSelectedStop] = useState<Stop | null>(null)
   const [typeFilter, setTypeFilter] = useState<TransportType | null>(null)
   const [presetQuery, setPresetQuery] = useState('')
+  const [favoriteError, setFavoriteError] = useState<string | null>(null)
 
   const { data: schedules, isLoading: schedulesLoading, dataUpdatedAt } = useSchedules(selectedStop?.id ?? null)
 
+  // Le GPS renvoie une position légèrement différente à chaque mise à jour (watchPosition) :
+  // arrondir à ~111m près évite de relancer une requête réseau à chaque micro-mouvement.
+  const roundedLat = lat !== null ? Math.round(lat * 1000) / 1000 : null
+  const roundedLon = lon !== null ? Math.round(lon * 1000) / 1000 : null
+
   const { data: nearbyStops = [] } = useQuery({
-    queryKey: ['nearby', lat, lon],
+    queryKey: ['nearby', roundedLat, roundedLon],
     queryFn: () => transportService.getNearbyStops({ lat: lat!, lon: lon!, radius: 500 }),
     enabled: !!(lat && lon),
     staleTime: 120_000,
@@ -65,12 +83,20 @@ export function Home() {
         lineCode: stop.lines?.[0] ?? '',
         transportType: stop.transportType,
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['favorites'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['favorites'] })
+      setFavoriteError(null)
+    },
+    onError: () => setFavoriteError('Impossible d\'ajouter ce favori. Réessayez.'),
   })
 
   const removeFavMutation = useMutation({
     mutationFn: (id: number) => transportService.removeFavorite(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['favorites'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['favorites'] })
+      setFavoriteError(null)
+    },
+    onError: () => setFavoriteError('Impossible de retirer ce favori. Réessayez.'),
   })
 
   const isFav = (stopId: string) => favorites.some((f) => f.stopId === stopId)
@@ -122,6 +148,13 @@ export function Home() {
         </h1>
         <p className="text-sm text-gray-500 mt-1">Consultez les prochains passages en temps réel</p>
       </div>
+
+      {favoriteError && (
+        <div className="flex items-center justify-between rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>{favoriteError}</span>
+          <button onClick={() => setFavoriteError(null)} className="ml-3 text-red-400 hover:text-red-600" aria-label="Fermer">✕</button>
+        </div>
+      )}
 
       <SearchBar onSelect={setSelectedStop} type={typeFilter ?? undefined} presetQuery={presetQuery} />
 
@@ -200,7 +233,7 @@ export function Home() {
           ) : schedules?.departures && schedules.departures.length > 0 ? (
             <div className="space-y-2">
               {schedules.departures.slice(0, 8).map((dep, i) => (
-                <ScheduleRow key={i} departure={dep} />
+                <ScheduleRow key={`${dep.lineCode}-${dep.direction}-${dep.waitMinutes}-${i}`} departure={dep} />
               ))}
             </div>
           ) : (

@@ -28,6 +28,7 @@ class ApiLogRepository extends ServiceEntityRepository
     public function countErrorsToday(): int
     {
         $today = new \DateTimeImmutable('today');
+
         return (int) $this->createQueryBuilder('l')
             ->select('COUNT(l.id)')
             ->andWhere('l.statusCode >= :code')
@@ -49,5 +50,18 @@ class ApiLogRepository extends ServiceEntityRepository
             ->getSingleScalarResult();
 
         return (float) ($result ?? 0);
+    }
+
+    /** Chaque requête /api/* écrit une ligne (ApiLogListener) : sans purge, la table grossit indéfiniment. */
+    public function deleteOlderThan(int $days): int
+    {
+        $cutoff = new \DateTimeImmutable("-{$days} days");
+
+        return $this->createQueryBuilder('l')
+            ->delete()
+            ->andWhere('l.createdAt < :cutoff')
+            ->setParameter('cutoff', $cutoff)
+            ->getQuery()
+            ->execute();
     }
 }

@@ -11,8 +11,9 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 class AppFixtures extends Fixture
 {
     public function __construct(
-        private readonly UserPasswordHasherInterface $passwordHasher
-    ) {}
+        private readonly UserPasswordHasherInterface $passwordHasher,
+    ) {
+    }
 
     public function load(ObjectManager $manager): void
     {
@@ -67,7 +68,7 @@ class AppFixtures extends Fixture
         string $plainPassword,
         string $firstName,
         string $lastName,
-        array $roles
+        array $roles,
     ): void {
         $user = new User();
         $user->setEmail($email);

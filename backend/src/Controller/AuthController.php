@@ -6,12 +6,14 @@ use App\Entity\User;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Email;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
@@ -25,7 +27,12 @@ class AuthController extends AbstractController
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly ValidatorInterface $validator,
         private readonly MailerInterface $mailer,
-    ) {}
+        #[Autowire(service: 'limiter.register_ip')]
+        private readonly RateLimiterFactory $registerLimiter,
+        #[Autowire(service: 'limiter.forgot_password_ip')]
+        private readonly RateLimiterFactory $forgotPasswordLimiter,
+    ) {
+    }
 
     #[Route('/login_check', name: 'api_login_check', methods: ['POST'])]
     public function loginCheck(): never
@@ -37,16 +44,20 @@ class AuthController extends AbstractController
     #[Route('/register', name: 'auth_register', methods: ['POST'])]
     public function register(Request $request): JsonResponse
     {
+        if (!$this->registerLimiter->create($request->getClientIp())->consume()->isAccepted()) {
+            return $this->json(['error' => 'Trop de tentatives d\'inscription. Réessayez plus tard.'], Response::HTTP_TOO_MANY_REQUESTS);
+        }
+
         $data = json_decode($request->getContent(), true);
 
         if (!$data) {
             return $this->json(['error' => 'Données invalides.'], Response::HTTP_BAD_REQUEST);
         }
 
-        $email     = trim($data['email'] ?? '');
-        $password  = $data['password'] ?? '';
+        $email = trim($data['email'] ?? '');
+        $password = $data['password'] ?? '';
         $firstName = trim($data['firstName'] ?? '');
-        $lastName  = trim($data['lastName'] ?? '');
+        $lastName = trim($data['lastName'] ?? '');
 
         if (strlen($password) < 8) {
             return $this->json(['error' => 'Le mot de passe doit contenir au moins 8 caractères.'], Response::HTTP_BAD_REQUEST);
@@ -69,6 +80,7 @@ class AuthController extends AbstractController
             foreach ($errors as $error) {
                 $errorMessages[] = $error->getMessage();
             }
+
             return $this->json(['errors' => $errorMessages], Response::HTTP_BAD_REQUEST);
         }
 
@@ -119,6 +131,7 @@ class AuthController extends AbstractController
             foreach ($errors as $error) {
                 $errorMessages[] = $error->getMessage();
             }
+
             return $this->json(['errors' => $errorMessages], Response::HTTP_BAD_REQUEST);
         }
 
@@ -153,10 +166,20 @@ class AuthController extends AbstractController
     }
 
     #[Route('/account', name: 'auth_delete_account', methods: ['DELETE'])]
-    public function deleteAccount(#[CurrentUser] ?User $user): JsonResponse
+    public function deleteAccount(Request $request, #[CurrentUser] ?User $user): JsonResponse
     {
         if (!$user) {
             return $this->json(['error' => 'Non authentifié.'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        // Le frontend demande une confirmation par mot de passe avant suppression : sans cette
+        // vérification côté serveur, n'importe quelle requête authentifiée supprimait le compte
+        // sans que le mot de passe saisi (même incorrect) ne soit jamais contrôlé.
+        $data = json_decode($request->getContent(), true) ?? [];
+        $password = $data['password'] ?? '';
+
+        if (!$this->passwordHasher->isPasswordValid($user, $password)) {
+            return $this->json(['error' => 'Mot de passe incorrect.'], Response::HTTP_BAD_REQUEST);
         }
 
         $this->em->remove($user);
@@ -168,7 +191,11 @@ class AuthController extends AbstractController
     #[Route('/forgot-password', name: 'auth_forgot_password', methods: ['POST'])]
     public function forgotPassword(Request $request): JsonResponse
     {
-        $data  = json_decode($request->getContent(), true);
+        if (!$this->forgotPasswordLimiter->create($request->getClientIp())->consume()->isAccepted()) {
+            return $this->json(['error' => 'Trop de demandes. Réessayez plus tard.'], Response::HTTP_TOO_MANY_REQUESTS);
+        }
+
+        $data = json_decode($request->getContent(), true);
         $email = trim($data['email'] ?? '');
 
         if (!$email) {
@@ -182,15 +209,17 @@ class AuthController extends AbstractController
             return $this->json(['message' => 'Si cet email existe, un lien de réinitialisation a été envoyé.']);
         }
 
+        // Seul le hash est stocké en base : un accès en lecture à la base ne suffit pas
+        // à usurper un compte, il faut le token en clair (envoyé uniquement par email).
         $token = bin2hex(random_bytes(32));
-        $user->setResetPasswordToken($token)
+        $user->setResetPasswordToken(hash('sha256', $token))
              ->setResetPasswordExpiresAt(new \DateTimeImmutable('+1 hour'));
 
         $this->em->flush();
 
         // Envoi de l'email de réinitialisation
         $frontendUrl = $_ENV['FRONTEND_URL'] ?? 'http://localhost:5173';
-        $resetLink = $frontendUrl . '/reinitialiser-mot-de-passe?token=' . $token;
+        $resetLink = $frontendUrl.'/reinitialiser-mot-de-passe?token='.$token;
 
         $emailMessage = (new Email())
             ->from('noreply@ancf-transport.fr')
@@ -198,19 +227,19 @@ class AuthController extends AbstractController
             ->subject('ANCF Transport — Réinitialisation de votre mot de passe')
             ->html(
                 '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">'
-                . '<h2 style="color: #1e40af;">Réinitialisation de mot de passe</h2>'
-                . '<p>Bonjour ' . htmlspecialchars($user->getFirstName()) . ',</p>'
-                . '<p>Vous avez demandé la réinitialisation de votre mot de passe sur ANCF Transport.</p>'
-                . '<p>Cliquez sur le bouton ci-dessous pour définir un nouveau mot de passe :</p>'
-                . '<p style="text-align: center; margin: 30px 0;">'
-                . '<a href="' . $resetLink . '" style="background-color: #1e40af; color: white; padding: 12px 24px; '
-                . 'text-decoration: none; border-radius: 6px; font-weight: bold;">Réinitialiser mon mot de passe</a>'
-                . '</p>'
-                . '<p style="color: #6b7280; font-size: 14px;">Ce lien expire dans 1 heure.</p>'
-                . '<p style="color: #6b7280; font-size: 14px;">Si vous n\'avez pas fait cette demande, ignorez cet email.</p>'
-                . '<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">'
-                . '<p style="color: #9ca3af; font-size: 12px;">ANCF Transport — Système d\'information temps réel</p>'
-                . '</div>'
+                .'<h2 style="color: #1e40af;">Réinitialisation de mot de passe</h2>'
+                .'<p>Bonjour '.htmlspecialchars($user->getFirstName()).',</p>'
+                .'<p>Vous avez demandé la réinitialisation de votre mot de passe sur ANCF Transport.</p>'
+                .'<p>Cliquez sur le bouton ci-dessous pour définir un nouveau mot de passe :</p>'
+                .'<p style="text-align: center; margin: 30px 0;">'
+                .'<a href="'.$resetLink.'" style="background-color: #1e40af; color: white; padding: 12px 24px; '
+                .'text-decoration: none; border-radius: 6px; font-weight: bold;">Réinitialiser mon mot de passe</a>'
+                .'</p>'
+                .'<p style="color: #6b7280; font-size: 14px;">Ce lien expire dans 1 heure.</p>'
+                .'<p style="color: #6b7280; font-size: 14px;">Si vous n\'avez pas fait cette demande, ignorez cet email.</p>'
+                .'<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">'
+                .'<p style="color: #9ca3af; font-size: 12px;">ANCF Transport — Système d\'information temps réel</p>'
+                .'</div>'
             );
 
         try {
@@ -221,8 +250,8 @@ class AuthController extends AbstractController
 
         $response = ['message' => 'Si cet email existe, un lien de réinitialisation a été envoyé.'];
 
-        // En dev uniquement : retourner le token pour faciliter les tests
-        if ($_ENV['APP_ENV'] === 'dev') {
+        // En dev/test uniquement : retourner le token pour faciliter les tests
+        if (in_array($_ENV['APP_ENV'], ['dev', 'test'], true)) {
             $response['debug_token'] = $token;
             $response['debug_reset_link'] = $resetLink;
         }
@@ -233,8 +262,8 @@ class AuthController extends AbstractController
     #[Route('/reset-password', name: 'auth_reset_password', methods: ['POST'])]
     public function resetPassword(Request $request): JsonResponse
     {
-        $data        = json_decode($request->getContent(), true);
-        $token       = trim($data['token'] ?? '');
+        $data = json_decode($request->getContent(), true);
+        $token = trim($data['token'] ?? '');
         $newPassword = $data['newPassword'] ?? '';
 
         if (!$token || !$newPassword) {
@@ -245,7 +274,7 @@ class AuthController extends AbstractController
             return $this->json(['error' => 'Le mot de passe doit contenir au moins 8 caractères.'], Response::HTTP_BAD_REQUEST);
         }
 
-        $user = $this->userRepo->findOneBy(['resetPasswordToken' => $token]);
+        $user = $this->userRepo->findOneBy(['resetPasswordToken' => hash('sha256', $token)]);
 
         if (!$user || $user->getResetPasswordExpiresAt() < new \DateTimeImmutable()) {
             return $this->json(['error' => 'Token invalide ou expiré.'], Response::HTTP_BAD_REQUEST);

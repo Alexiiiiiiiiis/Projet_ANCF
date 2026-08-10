@@ -29,12 +29,13 @@ class UserRepository extends ServiceEntityRepository implements PasswordUpgrader
         $this->getEntityManager()->flush();
     }
 
-    public function findActiveUsers(): array
+    public function findActiveUsers(int $limit = 1000): array
     {
         return $this->createQueryBuilder('u')
             ->andWhere('u.isActive = :active')
             ->setParameter('active', true)
             ->orderBy('u.createdAt', 'DESC')
+            ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
     }
@@ -50,6 +51,7 @@ class UserRepository extends ServiceEntityRepository implements PasswordUpgrader
     public function countActiveToday(): int
     {
         $today = new \DateTimeImmutable('today');
+
         return (int) $this->createQueryBuilder('u')
             ->select('COUNT(u.id)')
             ->andWhere('u.createdAt >= :today')
@@ -61,6 +63,7 @@ class UserRepository extends ServiceEntityRepository implements PasswordUpgrader
     public function findPaginated(int $page = 1, int $limit = 20): array
     {
         $offset = ($page - 1) * $limit;
+
         return $this->createQueryBuilder('u')
             ->orderBy('u.createdAt', 'DESC')
             ->setMaxResults($limit)
