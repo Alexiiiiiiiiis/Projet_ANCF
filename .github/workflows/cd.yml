@@ -34,8 +34,8 @@ jobs:
           file: docker/php/Dockerfile
           push: true
           tags: |
-            ancf/transport-backend:latest
-            ancf/transport-backend:${{ steps.version.outputs.VERSION }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/transport-backend:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/transport-backend:${{ steps.version.outputs.VERSION }}
 
       - name: Build Frontend
         working-directory: frontend
@@ -52,8 +52,8 @@ jobs:
           file: docker/nginx/Dockerfile
           push: true
           tags: |
-            ancf/transport-nginx:latest
-            ancf/transport-nginx:${{ steps.version.outputs.VERSION }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/transport-nginx:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/transport-nginx:${{ steps.version.outputs.VERSION }}
 
       - name: Create Release
         uses: actions/create-release@v1
@@ -66,8 +66,8 @@ jobs:
             ## Transport ANCF — ${{ steps.version.outputs.VERSION }}
 
             ### Docker Images
-            - `ancf/transport-backend:${{ steps.version.outputs.VERSION }}`
-            - `ancf/transport-nginx:${{ steps.version.outputs.VERSION }}`
+            - `${{ secrets.DOCKERHUB_USERNAME }}/transport-backend:${{ steps.version.outputs.VERSION }}`
+            - `${{ secrets.DOCKERHUB_USERNAME }}/transport-nginx:${{ steps.version.outputs.VERSION }}`
 
             ### Deployment
             ```bash
