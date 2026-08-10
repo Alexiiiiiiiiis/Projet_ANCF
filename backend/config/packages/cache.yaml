@@ -7,6 +7,12 @@ framework:
             idfm.cache:
                 adapter: cache.adapter.filesystem
                 default_lifetime: 300
+            # Référencés par doctrine.yaml (when@prod) pour le cache de requêtes/résultats —
+            # DoctrineBundle ne les crée pas automatiquement, il faut les déclarer soi-même.
+            doctrine.result_cache_pool:
+                adapter: cache.app
+            doctrine.system_cache_pool:
+                adapter: cache.system
 
 when@prod:
     framework:

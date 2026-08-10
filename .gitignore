@@ -20,6 +20,9 @@ frontend/.vite/
 # Docker volumes
 docker/volumes/
 
+# Clés JWT de production (générées sur l'hôte de déploiement, cf. README § Déploiement)
+/config/jwt/*.pem
+
 # Notes personnelles
 conversation-prim-api.md
 
