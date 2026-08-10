@@ -93,7 +93,7 @@ export function PolitiqueConfidentialitePage() {
           <p>
             Pour exercer vos droits ou pour toute question relative a la protection
             de vos donnees, contactez-nous a :{' '}
-            <strong>contact@ancf-transport.fr</strong>
+            <strong>al.rodrigues@ecole-ipssi.net</strong>
           </p>
         </section>
 

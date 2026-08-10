@@ -14,7 +14,7 @@ export function MentionsLegalesPage() {
           </p>
           <ul className="mt-2 list-disc pl-5 space-y-1">
             <li>Responsable : Alexis Rodrigues</li>
-            <li>Email : contact@ancf-transport.fr</li>
+            <li>Email : al.rodrigues@ecole-ipssi.net</li>
             <li>Formation : Bachelor CDA 2025-2026 — IPSSI Paris</li>
           </ul>
         </section>
