@@ -15,6 +15,10 @@ services:
       JWT_PASSPHRASE: ${JWT_PASSPHRASE}
       IDFM_API_KEY: ${IDFM_API_KEY}
       CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN}
+    volumes:
+      # Clés générées une fois sur l'hôte (cf. README § Déploiement) — jamais buildées dans
+      # l'image, qui est publique sur Docker Hub.
+      - ./config/jwt:/var/www/backend/config/jwt:ro
     restart: unless-stopped
     depends_on:
       mysql:

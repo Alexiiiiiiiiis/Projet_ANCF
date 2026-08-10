@@ -142,9 +142,57 @@ docker compose exec frontend npm test
 ```
 
 ## CI/CD (GitHub Actions)
-- **Push sur `develop`** → tests PHPUnit + TypeScript + build Docker
+- **Push sur `develop`** → tests unitaires + tests d'intégration (PHPUnit), PHPStan, ESLint, TypeScript, Vitest, build Docker
 - **Push sur `main`** → idem + vérification docker-compose
-- **Tag `v*.*.*`** → build & push images Docker Hub + GitHub Release
+- **Tag `v*.*.*`** → build & push des images sur Docker Hub + création d'une GitHub Release
+
+## Déploiement en production
+
+Les images Docker (backend + nginx/frontend) sont publiées automatiquement sur Docker Hub à
+chaque tag `v*.*.*` (cf. `.github/workflows/cd.yml`) — le serveur de prod n'a donc besoin que de
+`docker-compose.prod.yml` et d'un fichier `.env`, pas du code source ni d'un build local.
+
+### 1. Récupérer les fichiers nécessaires
+```bash
+git clone https://github.com/Alexiiiiiiiiis/Projet_ANCF.git
+cd Projet_ANCF/projet
+```
+
+### 2. Configuration
+```bash
+cp .env.example .env
+# Renseigner au minimum : MYSQL_*, DATABASE_URL, JWT_PASSPHRASE, CORS_ALLOW_ORIGIN,
+# DOCKER_IMAGE_PREFIX (votre pseudo Docker Hub) et VERSION (tag à déployer, ex. v1.0.3).
+```
+
+### 3. Générer les clés JWT (une seule fois, avant le premier démarrage)
+```bash
+mkdir -p config/jwt
+openssl genrsa -out config/jwt/private.pem 4096
+openssl rsa -pubout -in config/jwt/private.pem -out config/jwt/public.pem
+```
+Ces clés sont montées en lecture seule dans le conteneur `php` (`./config/jwt`) — elles ne sont
+jamais intégrées à l'image, qui est publique sur Docker Hub. À sauvegarder : les régénérer
+invaliderait tous les tokens JWT déjà émis.
+
+### 4. Récupérer et démarrer les images publiées
+```bash
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+### 5. Initialiser la base de données (premier déploiement uniquement)
+```bash
+docker compose -f docker-compose.prod.yml exec php php bin/console doctrine:migrations:migrate --no-interaction
+```
+
+### Mettre à jour vers une nouvelle version
+```bash
+# Modifier VERSION dans .env, puis :
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml exec php php bin/console doctrine:migrations:migrate --no-interaction
+```
 
 ---
 
