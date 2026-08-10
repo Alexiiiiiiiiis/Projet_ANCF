@@ -1,0 +1,78 @@
+name: CD — Deploy Transport ANCF
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  deploy:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & Push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/php/Dockerfile
+          push: true
+          tags: |
+            ancf/transport-backend:latest
+            ancf/transport-backend:${{ steps.version.outputs.VERSION }}
+
+      - name: Build Frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+
+      - name: Build & Push Nginx (with frontend)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/nginx/Dockerfile
+          push: true
+          tags: |
+            ancf/transport-nginx:latest
+            ancf/transport-nginx:${{ steps.version.outputs.VERSION }}
+
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          release_name: Transport ANCF ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## Transport ANCF — ${{ steps.version.outputs.VERSION }}
+
+            ### Docker Images
+            - `ancf/transport-backend:${{ steps.version.outputs.VERSION }}`
+            - `ancf/transport-nginx:${{ steps.version.outputs.VERSION }}`
+
+            ### Deployment
+            ```bash
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d
+            ```
+          draft: false
+          prerelease: false

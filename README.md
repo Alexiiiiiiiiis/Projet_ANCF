@@ -97,16 +97,45 @@ projet/
 - **Injection SQL** : toutes les requêtes passent par Doctrine ORM (requêtes paramétrées), aucune concaténation SQL.
 - **XSS** : React échappe par défaut tout contenu interpolé dans le JSX ; aucune utilisation de `dangerouslySetInnerHTML`.
 - **CSRF** : non applicable par conception — l'API est *stateless* : l'authentification repose sur un JWT transmis dans le header `Authorization: Bearer`, jamais dans un cookie. Un site tiers ne peut donc pas déclencher de requête authentifiée à l'insu de l'utilisateur (le navigateur n'attache aucun credential automatiquement). C'est la protection recommandée par l'OWASP pour les API token-based.
-- **Brute force** : `login_throttling` Symfony (composant RateLimiter) — 5 tentatives max, puis blocage 15 minutes par couple email/IP.
+- **Brute force** : `login_throttling` Symfony (composant RateLimiter) — 5 tentatives max, puis blocage 15 minutes par couple email/IP. Même composant utilisé pour limiter `/api/auth/register` (5/heure/IP) et `/api/auth/forgot-password` (3/15min/IP), qui n'ont pas de firewall d'authentification et n'étaient donc protégées par rien.
 - **Mots de passe** : hachés via le hasher Symfony (bcrypt/argon2 auto), minimum 8 caractères, jamais stockés ni loggés en clair.
 - **Clés API** : uniquement en variables d'environnement (`.env` gitignoré), jamais en dur ni côté front.
 - **Contrôle d'accès** : routes `/api/admin/*` réservées à `ROLE_ADMIN` (firewall Symfony), CORS restreint via NelmioCorsBundle.
 - **RGPD** : suppression de compte (et données associées), mentions légales et politique de confidentialité dans l'application.
 
+## Écarts par rapport au cahier des charges (CDC V4)
+
+Le CDC (§4.2) nomme des technologies précises pour trois choix techniques. Chacun a été
+volontairement remplacé par un équivalent fonctionnel, justifié ci-dessous plutôt que suivi à la
+lettre — les objectifs qu'ils servent (API RESTful testée, UI réactive et cohérente, tests
+automatisés) restent pleinement atteints.
+
+| Exigé (CDC) | Implémenté | Pourquoi |
+|---|---|---|
+| Material-UI ou Bootstrap React | **Tailwind CSS** | Contrôle plus fin, bundle plus léger qu'un framework de composants complet ; l'appli n'a besoin d'aucun composant préfabriqué complexe (data grid, date picker...), juste d'une mise en page cohérente. |
+| Jest | **Vitest** | Le frontend est bâti avec Vite : Vitest partage sa config/transformation avec le build de dev, expose une API quasi identique à Jest, et s'intègre nativement — c'est le choix recommandé par l'écosystème Vite lui-même plutôt que d'ajouter un second toolchain de test. |
+| API Platform ou FOSRestBundle | Contrôleurs Symfony classiques (`AbstractController` + `JsonResponse`) | FOSRestBundle n'est plus activement maintenu. API Platform apporte une couche de génération automatique (OpenAPI, sérialisation par groupes, filtres) disproportionnée pour une douzaine d'endpoints REST simples, et rend plus difficile d'y intégrer la logique métier spécifique du projet (cache, mode dégradé, agrégations). Les contrôleurs classiques produisent une API RESTful tout aussi conforme, et plus lisible à cette échelle. |
+
+Deux exigences fonctionnelles méritent aussi une précision sur la façon dont elles sont couvertes :
+
+- **F3.1** (minimum 3 prochains passages) : l'application affiche jusqu'à 5 passages dès qu'ils
+  existent, mais ne peut pas garantir un minimum de 3 si la source de données (réelle ou
+  dégradée) n'en fournit pas assez — impossible d'inventer des passages qui n'existent pas
+  (ligne peu fréquente, fin de service).
+- **F6.4** (distance à pied) : approximée via un facteur de détour urbain (`GeoService::
+  estimateWalkingDistance`, ×1.3 appliqué à la distance à vol d'oiseau) plutôt qu'un vrai calcul
+  d'itinéraire piéton, pour éviter une dépendance à un second service externe avec son propre
+  quota — leçon retenue avec l'API IDFM, dont le quota de 1000 req/jour peut être épuisé en
+  quelques heures d'usage (cf. `IdfmApiService`, `/api/admin/stats.apiQuota`).
+
 ## Tests
 ```bash
 # Backend (PHPUnit)
 docker compose exec php vendor/bin/phpunit
+
+# Backend — style de code (PSR-12 / Symfony, via PHP-CS-Fixer)
+docker compose exec php composer cs-check   # vérifie sans modifier
+docker compose exec php composer cs-fix     # corrige automatiquement
 
 # Frontend (Vitest)
 docker compose exec frontend npm test
