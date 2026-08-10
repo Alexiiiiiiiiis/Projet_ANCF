@@ -27,6 +27,17 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Resolve Docker Hub namespace
+        id: dockerhub
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          # Un secret copié-collé avec un retour à la ligne final casse silencieusement
+          # les tags multi-lignes ci-dessous (chaque tag se retrouve coupé en deux) : on
+          # nettoie donc la valeur ici plutôt que de dépendre d'un secret parfaitement propre.
+          NAMESPACE="$(printf '%s' "$DOCKERHUB_USERNAME" | tr -d '[:space:]')"
+          echo "namespace=$NAMESPACE" >> "$GITHUB_OUTPUT"
+
       - name: Build & Push Backend
         uses: docker/build-push-action@v5
         with:
@@ -34,8 +45,8 @@ jobs:
           file: docker/php/Dockerfile
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/transport-backend:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/transport-backend:${{ steps.version.outputs.VERSION }}
+            ${{ steps.dockerhub.outputs.namespace }}/transport-backend:latest
+            ${{ steps.dockerhub.outputs.namespace }}/transport-backend:${{ steps.version.outputs.VERSION }}
 
       - name: Build Frontend
         working-directory: frontend
@@ -52,8 +63,8 @@ jobs:
           file: docker/nginx/Dockerfile
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/transport-nginx:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/transport-nginx:${{ steps.version.outputs.VERSION }}
+            ${{ steps.dockerhub.outputs.namespace }}/transport-nginx:latest
+            ${{ steps.dockerhub.outputs.namespace }}/transport-nginx:${{ steps.version.outputs.VERSION }}
 
       - name: Create Release
         uses: actions/create-release@v1
@@ -66,8 +77,8 @@ jobs:
             ## Transport ANCF — ${{ steps.version.outputs.VERSION }}
 
             ### Docker Images
-            - `${{ secrets.DOCKERHUB_USERNAME }}/transport-backend:${{ steps.version.outputs.VERSION }}`
-            - `${{ secrets.DOCKERHUB_USERNAME }}/transport-nginx:${{ steps.version.outputs.VERSION }}`
+            - `${{ steps.dockerhub.outputs.namespace }}/transport-backend:${{ steps.version.outputs.VERSION }}`
+            - `${{ steps.dockerhub.outputs.namespace }}/transport-nginx:${{ steps.version.outputs.VERSION }}`
 
             ### Deployment
             ```bash
