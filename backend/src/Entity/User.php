@@ -62,7 +62,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\OrderBy(['sortOrder' => 'ASC', 'addedAt' => 'DESC'])]
     private Collection $favoriteStops;
 
-    #[ORM\OneToMany(targetEntity: SearchHistory::class, mappedBy: 'user', cascade: ['persist', 'remove'])]
+    // Pas de cascade 'remove' ici : la contrainte SQL (ON DELETE SET NULL, cf. migration)
+    // anonymise l'historique de recherche à la suppression du compte au lieu de le détruire.
+    #[ORM\OneToMany(targetEntity: SearchHistory::class, mappedBy: 'user', cascade: ['persist'])]
     private Collection $searchHistories;
 
     public function __construct()
@@ -97,6 +99,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setEmail(string $email): static
     {
         $this->email = $email;
+
         return $this;
     }
 
@@ -109,12 +112,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         $roles = $this->roles;
         $roles[] = 'ROLE_USER';
+
         return array_unique($roles);
     }
 
     public function setRoles(array $roles): static
     {
         $this->roles = $roles;
+
         return $this;
     }
 
@@ -126,6 +131,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setPassword(string $password): static
     {
         $this->password = $password;
+
         return $this;
     }
 
@@ -142,6 +148,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setFirstName(string $firstName): static
     {
         $this->firstName = $firstName;
+
         return $this;
     }
 
@@ -153,12 +160,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setLastName(string $lastName): static
     {
         $this->lastName = $lastName;
+
         return $this;
     }
 
     public function getFullName(): string
     {
-        return trim($this->firstName . ' ' . $this->lastName);
+        return trim($this->firstName.' '.$this->lastName);
     }
 
     public function isActive(): bool
@@ -169,6 +177,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setIsActive(bool $isActive): static
     {
         $this->isActive = $isActive;
+
         return $this;
     }
 
@@ -196,13 +205,23 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
             $this->favoriteStops->add($favoriteStop);
             $favoriteStop->setUser($this);
         }
+
         return $this;
     }
 
     public function removeFavoriteStop(FavoriteStop $favoriteStop): static
     {
         $this->favoriteStops->removeElement($favoriteStop);
+
         return $this;
+    }
+
+    /**
+     * @return Collection<int, SearchHistory>
+     */
+    public function getSearchHistories(): Collection
+    {
+        return $this->searchHistories;
     }
 
     public function getResetPasswordToken(): ?string
@@ -213,6 +232,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setResetPasswordToken(?string $token): static
     {
         $this->resetPasswordToken = $token;
+
         return $this;
     }
 
@@ -224,6 +244,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setResetPasswordExpiresAt(?\DateTimeImmutable $expiresAt): static
     {
         $this->resetPasswordExpiresAt = $expiresAt;
+
         return $this;
     }
 
