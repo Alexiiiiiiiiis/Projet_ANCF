@@ -1,0 +1,56 @@
+# Rendu par entrypoint via `envsubst '${PORT}'` — seul ${PORT} est substitué, les variables
+# nginx ($uri, $is_args…) doivent rester intactes.
+
+# Ce fichier est inclus dans le bloc http{} de nginx.conf, d'où la présence du map ici.
+map $http_x_forwarded_proto $forwarded_https {
+    default off;
+    https    on;
+}
+
+server {
+    listen ${PORT} default_server;
+    server_name _;
+
+    root /var/www/backend/public;
+
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    gzip on;
+    gzip_types application/json application/javascript text/css text/plain;
+    gzip_min_length 1000;
+
+    client_max_body_size 8m;
+
+    location / {
+        try_files $uri /index.php$is_args$args;
+    }
+
+    location ~ ^/index\.php(/|$) {
+        fastcgi_pass 127.0.0.1:9000;
+        fastcgi_split_path_info ^(.+\.php)(/.*)$;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        fastcgi_param DOCUMENT_ROOT $realpath_root;
+        # Le PaaS termine TLS en amont : sans cela Symfony génère des URL en http://
+        fastcgi_param HTTPS $forwarded_https;
+        fastcgi_buffer_size 128k;
+        fastcgi_buffers 4 256k;
+        fastcgi_busy_buffers_size 256k;
+        fastcgi_read_timeout 60;
+        internal;
+    }
+
+    # Tout autre .php serait un fichier déposé dans public/ : jamais exécuté.
+    location ~ \.php$ {
+        return 404;
+    }
+
+    location ~ /\. {
+        deny all;
+    }
+
+    access_log /dev/stdout;
+    error_log /dev/stderr;
+}
