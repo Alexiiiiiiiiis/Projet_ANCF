@@ -1,0 +1,8 @@
+# Créé par le CLI Vercel : .vercel contient l'identifiant du projet lié, .env.local le
+# VERCEL_OIDC_TOKEN téléchargé à chaque `vercel link`.
+.vercel
+.env*
+
+# Exception : ce fichier ne contient aucune valeur réelle, il documente les variables à
+# déclarer côté Vercel.
+!.env.production.example
