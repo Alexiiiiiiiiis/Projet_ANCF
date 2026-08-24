@@ -1,0 +1,51 @@
+# Ce qui ne doit jamais entrer dans une image publiée sur Docker Hub.
+#
+# Sans ce fichier, un `docker build` lancé depuis un poste de développement embarque le
+# .env.local du poste — donc la clé API PRIM — dans une image publique, et écrase le vendor/
+# installé en --no-dev par celui du poste (avec PHPUnit et PHPStan). La CD y échappait
+# seulement parce qu'elle part d'un checkout neuf où ces fichiers n'existent pas.
+
+.git/
+.github/
+.gitignore
+.gitattributes
+.claude/
+.sixth/
+
+# Secrets et surcharges locales
+.env
+.env.local
+.env.*.local
+backend/.env.local
+backend/.env.*.local
+backend/config/jwt/*.pem
+config/jwt/
+
+# backend/.env et backend/.env.dev sont gitignorés : la CD, qui part d'un checkout neuf, ne
+# les a jamais. Les exclure aussi d'un build local évite qu'une image construite ici se
+# comporte différemment de celle publiée — dans les deux cas Symfony retombe sur .env.dist.
+backend/.env
+backend/.env.dev
+
+# Dépendances et artefacts régénérés pendant le build
+backend/vendor/
+backend/var/
+frontend/node_modules/
+frontend/.vite/
+# NB : frontend/dist n'est PAS ignoré — docker/nginx/Dockerfile le copie dans l'image.
+
+# Outils et tests, inutiles en production
+backend/tests/
+backend/phpunit.xml.dist
+backend/.php-cs-fixer.dist.php
+backend/.php-cs-fixer.cache
+backend/.phpunit.result.cache
+backend/compose.yaml
+backend/compose.override.yaml
+frontend/src/tests/
+
+# Documentation et divers
+*.md
+!backend/README.md
+*.pdf
+docs/
