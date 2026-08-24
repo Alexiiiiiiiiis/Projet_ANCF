@@ -43,3 +43,6 @@ Thumbs.db
 backend/coverage.xml
 frontend/coverage/
 .claude
+
+# Outils téléchargés par scripts/demo-publique.sh (cloudflared, journal du tunnel)
+.tools/

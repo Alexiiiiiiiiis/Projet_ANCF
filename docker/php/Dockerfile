@@ -31,17 +31,24 @@ RUN pecl install redis && docker-php-ext-enable redis
 # Composer
 COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
 
+# Composer désactive ses plugins lorsqu'il tourne en root, et symfony/runtime en est un :
+# sans cette variable, vendor/autoload_runtime.php n'est pas généré et l'application meurt
+# au démarrage sur « Symfony Runtime is missing ».
+ENV COMPOSER_ALLOW_SUPERUSER=1
+
 # Create non-root user
 RUN groupadd -g 1000 appuser && useradd -u 1000 -g appuser -m appuser
 
 WORKDIR /var/www/backend
 
 # Copy composer files first for layer caching
+# Pas de `|| true` : un composer qui échoue doit casser le build. Masqué, il produit une
+# image sans autoloader qui n'échouera qu'au premier appel HTTP, en production.
 COPY backend/composer.json backend/composer.lock* ./
-RUN composer install --no-scripts --no-autoloader --prefer-dist --no-progress 2>/dev/null || true
+RUN composer install --no-scripts --no-autoloader --prefer-dist --no-progress
 
 COPY backend/ .
-RUN composer dump-autoload --optimize 2>/dev/null || true
+RUN composer dump-autoload --optimize
 
 RUN chown -R appuser:appuser /var/www/backend
 

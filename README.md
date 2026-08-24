@@ -195,6 +195,112 @@ docker compose -f docker-compose.prod.yml up -d
 docker compose -f docker-compose.prod.yml exec php php bin/console doctrine:migrations:migrate --no-interaction
 ```
 
+## Hébergement en ligne (Vercel + PaaS)
+
+Alternative au déploiement sur un serveur unique décrit ci-dessus : le frontend est servi par
+Vercel, l'API par un hébergeur de conteneurs. Les deux parties sont indépendantes.
+
+**Vercel ne peut héberger que le frontend.** C'est une plateforme de fichiers statiques et de
+fonctions serverless : elle ne fait tourner ni PHP-FPM au long cours, ni MySQL, ni Redis. L'API
+Symfony a donc besoin de son propre hébergeur.
+
+### Frontend sur Vercel
+
+La configuration est dans `frontend/vercel.json` (build Vite, réécriture SPA, en-têtes de
+sécurité et cache des assets).
+
+1. Sur vercel.com : **Add New > Project**, importer `Alexiiiiiiiiis/Projet_ANCF`.
+2. **Root Directory : `frontend`** — sans ça, Vercel cherche un `package.json` à la racine du
+   dépôt et le build échoue.
+3. Variable d'environnement `VITE_API_URL` = URL publique de l'API, suffixe `/api` compris
+   (cf. `frontend/.env.production.example`). Elle est lue **au moment du build** : la modifier
+   impose un redéploiement, un simple redémarrage ne suffit pas.
+
+En ligne de commande :
+```bash
+cd frontend
+npx vercel login
+npx vercel deploy --prod
+```
+
+L'URL doit être en `https://` : le site Vercel étant servi en HTTPS, un appel vers une API en
+`http://` est bloqué par le navigateur (contenu mixte).
+
+### API sur un hébergeur de conteneurs
+
+`docker/api/Dockerfile` produit une image **mono-conteneur** (nginx + PHP-FPM supervisés) qui
+écoute sur le port imposé par la variable `PORT` — le format attendu par Railway, Render,
+Clever Cloud ou Fly.io, qui ne lancent qu'un conteneur par service. Elle est publiée sur Docker
+Hub à chaque tag sous `<pseudo>/transport-api`.
+
+Le couple `docker/php` + `docker/nginx` reste l'image du déploiement Docker Compose ci-dessus ;
+les deux voies coexistent.
+
+Exemple avec Railway (`railway.json` est déjà fourni) :
+1. Créer un projet à partir du dépôt GitHub — le Dockerfile et la sonde `/api/health` sont
+   détectés automatiquement.
+2. Ajouter les services **MySQL** et **Redis** dans le même projet.
+3. Renseigner les variables d'environnement ci-dessous.
+4. Générer un domaine public, puis reporter cette URL dans `VITE_API_URL` côté Vercel et dans
+   `CORS_ALLOW_ORIGIN` côté API.
+
+| Variable | Valeur |
+|---|---|
+| `APP_ENV` | `prod` |
+| `APP_SECRET` | chaîne aléatoire (`openssl rand -hex 32`) |
+| `DATABASE_URL` | `mysql://user:pass@host:3306/base?serverVersion=8.0&charset=utf8mb4` |
+| `REDIS_URL` | `redis://host:6379` |
+| `JWT_PASSPHRASE` | passphrase des clés JWT |
+| `JWT_SECRET_KEY_B64` | clé privée PEM encodée en base64 |
+| `JWT_PUBLIC_KEY_B64` | clé publique PEM encodée en base64 |
+| `CORS_ALLOW_ORIGIN` | `^https://.*\.vercel\.app$` (ou le domaine exact) |
+| `IDFM_API_KEY` | clé PRIM |
+| `MAILER_DSN` | DSN SMTP réel |
+| `FRONTEND_URL` | URL Vercel, utilisée dans les liens de réinitialisation de mot de passe |
+
+Aucun volume persistant n'existe sur ce type d'hébergeur : les clés JWT sont transmises en
+variables d'environnement plutôt que montées en fichiers.
+```bash
+openssl genrsa -out private.pem -aes256 -passout pass:VOTRE_PASSPHRASE 4096
+openssl rsa -pubout -in private.pem -passin pass:VOTRE_PASSPHRASE -out public.pem
+base64 -w0 private.pem   # → JWT_SECRET_KEY_B64
+base64 -w0 public.pem    # → JWT_PUBLIC_KEY_B64
+```
+Sans ces deux variables, le conteneur génère une paire éphémère au démarrage et **invalide tous
+les jetons émis à chaque redéploiement**.
+
+Les migrations Doctrine sont appliquées automatiquement au démarrage du conteneur. Mettre
+`RUN_MIGRATIONS=0` si plusieurs instances tournent en parallèle, pour éviter qu'elles migrent la
+même base simultanément.
+
+### Mode démonstration : API exposée depuis le poste de développement
+
+Pour une soutenance, l'API peut tourner sur la machine de développement et être exposée par un
+tunnel Cloudflare, sans hébergeur ni compte. Le frontend reste hébergé en permanence sur Vercel.
+
+```bash
+sh scripts/demo-publique.sh
+```
+
+Le script démarre MySQL et Redis, lance l'API en `APP_ENV=prod` sur le port 8090, ouvre le
+tunnel, puis réinjecte l'URL obtenue dans `VITE_API_URL` côté Vercel et redéploie.
+
+Deux limites à connaître : l'API n'est accessible que tant que le script tourne et que la
+machine est allumée, et un tunnel « quick » reçoit une **URL différente à chaque démarrage** —
+c'est pourquoi le script redéploie le frontend à chaque fois, `VITE_API_URL` étant figée dans le
+bundle au moment du build.
+
+Les clés JWT sont générées une seule fois dans `config/jwt/` (ignoré par git) et montées en
+lecture seule : les comptes restent valides d'une session à l'autre.
+
+### Vérifier un déploiement
+```bash
+curl https://votre-api.example.com/api/health
+# {"status":"ok","database":"up","time":"..."}
+```
+La route renvoie 503 tant que la base n'est pas jointe : c'est la sonde utilisée par
+l'hébergeur pour ne pas router de trafic vers une instance pas encore prête.
+
 ---
 
 **Auteur :** Rodrigues Alexis — Bachelor CDA 2025-2026, IPSSI Paris

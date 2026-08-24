@@ -50,6 +50,19 @@ jobs:
             ${{ steps.dockerhub.outputs.namespace }}/transport-backend:latest
             ${{ steps.dockerhub.outputs.namespace }}/transport-backend:${{ steps.version.outputs.VERSION }}
 
+      # Variante mono-conteneur (nginx + PHP-FPM) pour l'hébergement PaaS, où un service
+      # ne peut lancer qu'un conteneur. Le couple backend/nginx ci-dessus reste l'image
+      # utilisée par docker-compose.prod.yml.
+      - name: Build & Push API (mono-conteneur, PaaS)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/api/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.dockerhub.outputs.namespace }}/transport-api:latest
+            ${{ steps.dockerhub.outputs.namespace }}/transport-api:${{ steps.version.outputs.VERSION }}
+
       - name: Build Frontend
         working-directory: frontend
         run: |

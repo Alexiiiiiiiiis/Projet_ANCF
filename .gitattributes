@@ -1,0 +1,12 @@
+# Le poste de développement est sous Windows avec core.autocrlf=true : les fichiers destinés
+# à tourner dans un conteneur Linux doivent rester en LF, sinon le shell refuse de les
+# exécuter (« /bin/sh^M: bad interpreter »).
+#
+# Règles volontairement limitées à ces fichiers-là : un `* text=auto eol=lf` global
+# renormaliserait tout le dépôt et changerait les fins de ligne dans les copies de travail
+# existantes.
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.conf      text eol=lf
+*.template  text eol=lf
+entrypoint  text eol=lf
