@@ -8,6 +8,7 @@ import { Home } from './pages/Home'
 import { MapPage } from './pages/MapPage'
 import { SchedulesPage } from './pages/SchedulesPage'
 import { LinePage } from './pages/LinePage'
+import { StopSchedulePage } from './pages/StopSchedulePage'
 import { JourneyPage } from './pages/JourneyPage'
 import { AlertsPage } from './pages/AlertsPage'
 import { FavoritesPage } from './pages/FavoritesPage'
@@ -42,6 +43,7 @@ export default function App() {
                 <Route path="/carte" element={<MapPage />} />
                 <Route path="/horaires" element={<SchedulesPage />} />
                 <Route path="/horaires/ligne/:lineId" element={<LinePage />} />
+                <Route path="/horaires/arret/:stopId" element={<StopSchedulePage />} />
                 <Route
                   path="/itineraire"
                   element={
