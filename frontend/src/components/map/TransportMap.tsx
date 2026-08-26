@@ -13,10 +13,14 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 })
 
-function makeIcon(color: string) {
+function makeIcon(color: string, highlighted = false) {
+  // L'arrêt recherché reçoit un liseré foncé et un point central plus gros pour ressortir
+  // au milieu des arrêts voisins, qui partagent souvent la même couleur de mode.
+  const outline = highlighted ? '<path d="M14 0C6.27 0 0 6.27 0 14c0 5.5 3.18 10.29 7.84 12.73L14 38l6.16-11.27C24.82 24.29 28 19.5 28 14 28 6.27 21.73 0 14 0z" fill="none" stroke="#111827" stroke-width="3"/>' : ''
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="38" viewBox="0 0 28 38">
     <path d="M14 0C6.27 0 0 6.27 0 14c0 5.5 3.18 10.29 7.84 12.73L14 38l6.16-11.27C24.82 24.29 28 19.5 28 14 28 6.27 21.73 0 14 0z" fill="${color}"/>
-    <circle cx="14" cy="14" r="7" fill="white"/>
+    <circle cx="14" cy="14" r="${highlighted ? 5 : 7}" fill="white"/>
+    ${outline}
   </svg>`
   return L.divIcon({
     html: svg,
@@ -27,38 +31,52 @@ function makeIcon(color: string) {
   })
 }
 
-function RecenterMap({ lat, lon }: { lat: number; lon: number }) {
+/**
+ * Recentre la carte à chaque changement de `trigger`.
+ *
+ * Le déclencheur est passé par le parent plutôt que déduit des coordonnées : la position GPS
+ * est arrondie (~111m) pour ne pas écraser en permanence la vue de l'utilisateur qui a
+ * zoomé/déplacé la carte, alors qu'un arrêt choisi dans la recherche doit recentrer la carte
+ * même s'il est à deux pas du précédent — ou si c'est le même qu'avant.
+ */
+function RecenterMap({ lat, lon, zoom, trigger }: { lat: number; lon: number; zoom?: number; trigger: string }) {
   const map = useMap()
 
-  // Ne recentrer que si la position a réellement bougé (~111m), pas à chaque re-render du
-  // parent (refetch react-query, poll des départs...) : sinon la vue de l'utilisateur qui a
-  // zoomé/déplacé la carte est écrasée en permanence par la position GPS.
-  const roundedLat = Math.round(lat * 1000) / 1000
-  const roundedLon = Math.round(lon * 1000) / 1000
-
   useEffect(() => {
-    map.setView([lat, lon], map.getZoom())
+    map.setView([lat, lon], zoom ?? map.getZoom())
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roundedLat, roundedLon, map])
+  }, [trigger, map])
 
   return null
+}
+
+export interface MapFocus {
+  lat: number
+  lon: number
+  zoom?: number
+  /** Identifie le recentrage demandé (position GPS arrondie, ou arrêt choisi + n° de sélection) */
+  key: string
 }
 
 interface TransportMapProps {
   stops: Stop[]
   userLat?: number | null
   userLon?: number | null
+  /** Point sur lequel recentrer la carte */
+  focus?: MapFocus | null
+  /** Arrêt à mettre en évidence (résultat de recherche) */
+  highlightStopId?: string | null
   onStopClick?: (stop: Stop) => void
 }
 
-export function TransportMap({ stops, userLat, userLon, onStopClick }: TransportMapProps) {
-  const centerLat = userLat ?? 48.8566
-  const centerLon = userLon ?? 2.3522
+export function TransportMap({ stops, userLat, userLon, focus, highlightStopId, onStopClick }: TransportMapProps) {
+  const centerLat = focus?.lat ?? userLat ?? 48.8566
+  const centerLon = focus?.lon ?? userLon ?? 2.3522
 
   return (
     <MapContainer
       center={[centerLat, centerLon]}
-      zoom={14}
+      zoom={focus?.zoom ?? 14}
       style={{ height: '100%', width: '100%', borderRadius: '0.75rem' }}
     >
       <TileLayer
@@ -66,16 +84,15 @@ export function TransportMap({ stops, userLat, userLon, onStopClick }: Transport
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
+      {focus && <RecenterMap lat={focus.lat} lon={focus.lon} zoom={focus.zoom} trigger={focus.key} />}
+
       {userLat && userLon && (
-        <>
-          <RecenterMap lat={userLat} lon={userLon} />
-          <Marker
-            position={[userLat, userLon]}
-            icon={makeIcon('#3b82f6')}
-          >
-            <Popup>Votre position</Popup>
-          </Marker>
-        </>
+        <Marker
+          position={[userLat, userLon]}
+          icon={makeIcon('#3b82f6')}
+        >
+          <Popup>Votre position</Popup>
+        </Marker>
       )}
 
       {stops.map((stop) => (
@@ -83,7 +100,8 @@ export function TransportMap({ stops, userLat, userLon, onStopClick }: Transport
           <Marker
             key={stop.id}
             position={[stop.lat, stop.lon]}
-            icon={makeIcon(TRANSPORT_COLORS[stop.transportType] ?? '#6b7280')}
+            icon={makeIcon(TRANSPORT_COLORS[stop.transportType] ?? '#6b7280', stop.id === highlightStopId)}
+            zIndexOffset={stop.id === highlightStopId ? 1000 : 0}
             eventHandlers={{ click: () => onStopClick?.(stop) }}
           >
             <Popup>
