@@ -6,6 +6,7 @@ import { ProtectedRoute } from './components/ui/ProtectedRoute'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { Home } from './pages/Home'
 import { MapPage } from './pages/MapPage'
+import { SchedulesPage } from './pages/SchedulesPage'
 import { JourneyPage } from './pages/JourneyPage'
 import { AlertsPage } from './pages/AlertsPage'
 import { FavoritesPage } from './pages/FavoritesPage'
@@ -38,6 +39,7 @@ export default function App() {
               <Route element={<Layout />}>
                 <Route path="/" element={<Home />} />
                 <Route path="/carte" element={<MapPage />} />
+                <Route path="/horaires" element={<SchedulesPage />} />
                 <Route
                   path="/itineraire"
                   element={
