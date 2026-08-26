@@ -46,6 +46,17 @@ class IdfmApiService
         'line:IDFM:C01383' => ['M13', 'METRO'], 'line:IDFM:C01384' => ['M14', 'METRO'],
     ];
 
+    /** Accents français (plus œ et æ) ramenés à leur lettre de base — cf. normaliserLibelle(). */
+    private const EQUIVALENCES_ACCENTS = [
+        'à' => 'a', 'á' => 'a', 'â' => 'a', 'ä' => 'a', 'ã' => 'a', 'å' => 'a',
+        'ç' => 'c',
+        'è' => 'e', 'é' => 'e', 'ê' => 'e', 'ë' => 'e',
+        'ì' => 'i', 'í' => 'i', 'î' => 'i', 'ï' => 'i',
+        'ò' => 'o', 'ó' => 'o', 'ô' => 'o', 'ö' => 'o', 'õ' => 'o',
+        'ù' => 'u', 'ú' => 'u', 'û' => 'u', 'ü' => 'u',
+        'ý' => 'y', 'ÿ' => 'y', 'ñ' => 'n', 'œ' => 'oe', 'æ' => 'ae',
+    ];
+
     private const QUOTA_CACHE_KEY = 'idfm_quota_status';
 
     public function __construct(
@@ -911,13 +922,24 @@ class IdfmApiService
 
     // ─── Mock Data (demo / API key not configured) ─────────────────────────
 
+    /**
+     * Minuscules sans accents, pour comparer une saisie clavier à un nom d'arrêt : sans ça,
+     * « chatelet » ne trouve pas « Châtelet », alors que personne ne tape les accents dans une
+     * barre de recherche. Seul le mode simulé en a besoin — interrogée avec une clé, l'API PRIM
+     * fait déjà cette correspondance de son côté.
+     */
+    private function normaliserLibelle(string $texte): string
+    {
+        return strtr(mb_strtolower($texte, 'UTF-8'), self::EQUIVALENCES_ACCENTS);
+    }
+
     private function getMockSearchResults(string $query, ?string $type, int $limit): array
     {
         $allStops = $this->getAllMockStops();
-        $query = strtolower($query);
+        $query = $this->normaliserLibelle($query);
 
         $filtered = array_filter($allStops, function ($stop) use ($query, $type) {
-            $nameMatch = str_contains(strtolower($stop['name']), $query);
+            $nameMatch = str_contains($this->normaliserLibelle($stop['name']), $query);
             $typeMatch = !$type || $stop['transportType'] === strtoupper($type);
 
             return $nameMatch && $typeMatch;
