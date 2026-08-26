@@ -24,9 +24,35 @@ export interface Departure {
   departureTime?: string | null
 }
 
+/** Une ligne desservant un arret, telle qu'annoncee par /api/schedules */
+export interface StopLine {
+  lineCode: string
+  transportType: TransportType
+}
+
+/** Une ligne du reseau, telle que catalogue par /api/lines */
+export interface TransportLine {
+  id: string
+  /** Code nu affiche dans la pastille : « A », « 4 », « T3a », « 72 » */
+  code: string
+  /** Libelle public : « RER A », « Train H », « Metro 4 », « Bus 72 » */
+  label: string
+  /** Code annonce par les horaires — c'est lui qui filtre les departs d'un arret */
+  lineCode: string
+  transportType: TransportType
+  /** Couleur officielle IDFM, null si l'API ne la donne pas */
+  color: string | null
+  textColor: string | null
+  /** Reseau exploitant — distingue les numeros de bus partages */
+  network: string | null
+}
+
 export interface StopWithDepartures extends Stop {
   departures: Departure[]
 }
+
+/** LINE : la ligne elle-meme est touchee. STOP : un equipement de gare (ascenseur, acces). */
+export type AlertScope = 'LINE' | 'STOP'
 
 export interface TrafficAlert {
   id: string
@@ -34,6 +60,7 @@ export interface TrafficAlert {
   transportType: TransportType
   severity: AlertSeverity
   category: AlertCategory
+  scope: AlertScope
   title: string
   description: string
   estimatedResume?: string | null
@@ -61,12 +88,17 @@ export interface Journey {
   sections: JourneySection[]
 }
 
+/** Un favori porte soit un arret, soit une ligne entiere */
+export type FavoriteKind = 'STOP' | 'LINE'
+
 export interface FavoriteStop {
   id: number
+  /** Identifiant de l'arret, ou de la ligne quand kind vaut LINE */
   stopId: string
   stopName: string
   lineCode: string
   transportType: TransportType
+  kind: FavoriteKind
   addedAt: string
   sortOrder: number
 }
@@ -123,6 +155,30 @@ export const TRANSPORT_ICONS: Record<TransportType, string> = {
   RER:   '🚆',
   TRAM:  '🚊',
   BUS:   '🚌',
+}
+
+/** Etat de trafic d'une ligne, tel que le resume /api/lines/status */
+export interface LineTrafficStatus {
+  lineId: string
+  severity: AlertSeverity | 'NORMAL'
+  category: AlertCategory | null
+  /** Perturbations en cours sur la ligne */
+  count: number
+  title: string | null
+}
+
+export const TRAFFIC_COLORS: Record<AlertSeverity | 'NORMAL', string> = {
+  NORMAL:   '#0B8A3D',
+  INFO:     '#0052CC',
+  MODERATE: '#FF991F',
+  MAJOR:    '#DE350B',
+}
+
+export const TRAFFIC_LABELS: Record<AlertSeverity | 'NORMAL', string> = {
+  NORMAL:   'Trafic normal',
+  INFO:     'Info trafic',
+  MODERATE: 'Trafic perturbé',
+  MAJOR:    'Trafic très perturbé',
 }
 
 export const SEVERITY_COLORS: Record<AlertSeverity, string> = {
