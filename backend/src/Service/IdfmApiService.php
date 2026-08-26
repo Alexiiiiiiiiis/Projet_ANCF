@@ -59,6 +59,9 @@ class IdfmApiService
     ];
 
     /** Prefixe : SIRI et Navitia ont chacun leur compteur de 1000 requetes/jour chez PRIM. */
+    /** Du mode le plus structurant au moins structurant : sert au tri comme au libellé d'un arrêt. */
+    private const MODE_PRIORITY = ['METRO' => 1, 'RER' => 2, 'TRAM' => 3, 'BUS' => 4];
+
     private const QUOTA_CACHE_PREFIX = 'idfm_quota_status_';
 
     /** @var array<int, string> APIs dont le quota est suivi, cf. getApiQuotaStatus(). */
@@ -826,11 +829,33 @@ class IdfmApiService
     {
         $modeName = $this->pickPrimaryMode($stopArea['commercial_modes'] ?? []);
 
-        $lines = [];
-        foreach (array_slice($stopArea['lines'] ?? [], 0, 8) as $line) {
+        // Navitia liste les lignes dans un ordre qui lui est propre, bus compris : à La Défense,
+        // ses 27 lignes commencent par le M1 puis huit lignes de bus, si bien qu'une simple
+        // troncature faisait disparaître le RER A, le RER E, le T2 et les Transilien. On trie
+        // donc par importance de mode avant de couper, pour que l'arrêt s'annonce par ce qui le
+        // caractérise — et que ses badges correspondent aux départs affichés juste après.
+        $lignes = [];
+        foreach ($stopArea['lines'] ?? [] as $line) {
             $lineMode = $line['commercial_mode']['name'] ?? 'bus';
-            $lines[] = $this->formatLineLabel($lineMode, $line['code'] ?? ($line['name'] ?? '?'));
+            $label = $this->formatLineLabel($lineMode, $line['code'] ?? ($line['name'] ?? '?'));
+            $rang = self::MODE_PRIORITY[$this->mapTransportType($lineMode)] ?? 9;
+
+            $lignes[] = [
+                'label' => $label,
+                // Le Transilien partage le rang du RER (mapTransportType les confond) mais passe
+                // après lui : "M1, RER A, RER E, L, U" se lit mieux que "M1, L, RER A, RER E, U".
+                'rang' => 10 * $rang + (str_starts_with($label, 'RER ') ? 0 : 1),
+            ];
         }
+
+        usort($lignes, static function (array $a, array $b): int {
+            return $a['rang'] === $b['rang']
+                ? strnatcmp($a['label'], $b['label'])
+                : $a['rang'] <=> $b['rang'];
+        });
+
+        // Une même lettre peut arriver deux fois (Transilien L et bus L à La Défense).
+        $lines = \array_slice(array_values(array_unique(array_column($lignes, 'label'))), 0, 8);
 
         return [
             'id' => $stopArea['id'] ?? uniqid(),
@@ -1048,7 +1073,7 @@ class IdfmApiService
     /** Un arrêt multi-modes (ex. Châtelet) est typé selon son mode le plus structurant. */
     private function pickPrimaryMode(array $commercialModes): string
     {
-        $priority = ['METRO' => 1, 'RER' => 2, 'TRAM' => 3, 'BUS' => 4];
+        $priority = self::MODE_PRIORITY;
         $best = 'bus';
         $bestRank = PHP_INT_MAX;
 

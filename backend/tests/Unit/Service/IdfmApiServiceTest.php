@@ -423,6 +423,46 @@ class IdfmApiServiceTest extends TestCase
         ]];
     }
 
+    public function testSearchStopsKeepsStructuringLinesOverBuses(): void
+    {
+        // Navitia renvoie les 27 lignes de La Defense en commencant par le metro puis les bus :
+        // tronquer sans trier faisait disparaitre le RER A et le RER E des badges de l arret,
+        // alors qu ils apparaissent dans ses departs.
+        $lignes = [['commercial_mode' => ['name' => 'Métro'], 'code' => '1']];
+        foreach (['73', '141', '144', '159', '174', '178', '258'] as $bus) {
+            $lignes[] = ['commercial_mode' => ['name' => 'Bus'], 'code' => $bus];
+        }
+        $lignes[] = ['commercial_mode' => ['name' => 'RER'], 'code' => 'A'];
+        $lignes[] = ['commercial_mode' => ['name' => 'RER'], 'code' => 'E'];
+        $lignes[] = ['commercial_mode' => ['name' => 'Tramway'], 'code' => 'T2'];
+
+        $apiResponse = $this->createMock(ResponseInterface::class);
+        $apiResponse->method('toArray')->willReturn([
+            'places' => [[
+                'embedded_type' => 'stop_area',
+                'stop_area' => [
+                    'id' => 'stop_area:IDFM:71517',
+                    'name' => 'La Défense',
+                    'coord' => ['lat' => 48.892, 'lon' => 2.238],
+                    'commercial_modes' => [['name' => 'Métro'], ['name' => 'RER']],
+                    'lines' => $lignes,
+                ],
+            ]],
+        ]);
+
+        $this->httpClient->method('request')->willReturn($apiResponse);
+
+        $results = $this->createService('test-api-key')->searchStops('La Défense');
+
+        $this->assertCount(1, $results);
+        $this->assertContains('RER A', $results[0]['lines']);
+        $this->assertContains('RER E', $results[0]['lines']);
+        $this->assertContains('T2', $results[0]['lines']);
+        // Le mode le plus structurant ouvre la liste, les bus ferment la marche.
+        $this->assertSame('M1', $results[0]['lines'][0]);
+        $this->assertLessThanOrEqual(8, count($results[0]['lines']));
+    }
+
     public function testGetDeparturesUsesSiriRealtimeTimes(): void
     {
         $dansSixMinutes = (new \DateTimeImmutable('+6 minutes'))->format(DATE_ATOM);
