@@ -14,13 +14,6 @@ framework:
             doctrine.system_cache_pool:
                 adapter: cache.system
 
-parameters:
-    # Valeur par défaut : nom du service Redis dans docker-compose. Un hébergeur PaaS
-    # (Railway, Clever Cloud…) fournit sa propre URL, à passer via la variable REDIS_URL.
-    env(REDIS_URL): 'redis://redis:6379'
-
-when@prod:
-    framework:
-        cache:
-            app: cache.adapter.redis
-            default_redis_provider: '%env(REDIS_URL)%'
+# Le cache applicatif de production est configuré dans cache.php : le choix de l'adaptateur
+# dépend de la présence d'un Redis chez l'hébergeur, et ne peut pas s'exprimer ici (voir le
+# commentaire de ce fichier).

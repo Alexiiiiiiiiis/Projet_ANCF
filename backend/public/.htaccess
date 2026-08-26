@@ -1,0 +1,42 @@
+# Réécriture Apache pour le contrôleur frontal Symfony.
+#
+# Inutile derrière nginx (docker/nginx et docker/api font le même travail avec try_files),
+# indispensable sur un hébergement mutualisé Apache — OVH, o2switch, Ionos… — où sans ce
+# fichier toutes les routes autres que « / » renvoient 404.
+
+DirectoryIndex index.php
+
+<IfModule mod_negotiation.c>
+    Options -MultiViews
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Détermine le préfixe d'URL quand l'application n'est pas à la racine du domaine.
+    RewriteCond %{REQUEST_URI}::$0 ^(/.+)/(.*)::\2$
+    RewriteRule .* - [E=BASE:%1]
+
+    # En CGI/FastCGI, Apache ne transmet pas l'en-tête Authorization à PHP. Sans cette règle,
+    # le « Bearer <jwt> » n'arrive jamais jusqu'à Symfony : la connexion réussit, puis toutes
+    # les routes authentifiées répondent 401.
+    RewriteCond %{HTTP:Authorization} .+
+    RewriteRule ^ - [E=HTTP_AUTHORIZATION:%0]
+
+    # Redirige /index.php/quelque-chose vers /quelque-chose (une seule URL canonique).
+    RewriteCond %{ENV:REDIRECT_STATUS} =""
+    RewriteRule ^index\.php(?:/(.*)|$) %{ENV:BASE}/$1 [R=301,L]
+
+    # Un fichier réel est servi tel quel.
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^ - [L]
+
+    # Tout le reste passe par le contrôleur frontal.
+    RewriteRule ^ %{ENV:BASE}/index.php [L]
+</IfModule>
+
+<IfModule !mod_rewrite.c>
+    <IfModule mod_alias.c>
+        RedirectMatch 307 ^/$ /index.php/
+    </IfModule>
+</IfModule>

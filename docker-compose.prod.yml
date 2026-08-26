@@ -15,6 +15,9 @@ services:
       JWT_PASSPHRASE: ${JWT_PASSPHRASE}
       IDFM_API_KEY: ${IDFM_API_KEY}
       CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN}
+      # Le service redis ci-dessous existe : on l'utilise pour le cache applicatif. Sans cette
+      # variable, l'application retombe sur le cache disque (cf. config/packages/cache.php).
+      REDIS_URL: redis://redis:6379
     volumes:
       # Clés générées une fois sur l'hôte (cf. README § Déploiement) — jamais buildées dans
       # l'image, qui est publique sur Docker Hub.
