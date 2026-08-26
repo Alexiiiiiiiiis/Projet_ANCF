@@ -38,7 +38,14 @@ export default function App() {
               <Route element={<Layout />}>
                 <Route path="/" element={<Home />} />
                 <Route path="/carte" element={<MapPage />} />
-                <Route path="/itineraire" element={<JourneyPage />} />
+                <Route
+                  path="/itineraire"
+                  element={
+                    <ProtectedRoute>
+                      <JourneyPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/alertes" element={<AlertsPage />} />
                 <Route path="/mentions-legales" element={<MentionsLegalesPage />} />
                 <Route path="/politique-confidentialite" element={<PolitiqueConfidentialitePage />} />
