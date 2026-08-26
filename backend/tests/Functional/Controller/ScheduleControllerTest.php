@@ -50,6 +50,45 @@ class ScheduleControllerTest extends WebTestCase
         $this->assertNotEmpty($data['departures']);
     }
 
+    public function testDeparturesAcceptsLineFilter(): void
+    {
+        // Gare du Nord voit passer le RER B et le RER D : filtrer sur l'un ne doit pas laisser
+        // passer l'autre, meme mode ou pas.
+        $this->client->request('GET', '/api/schedules/stop:RERA:gare_nord?line=RER%20B');
+        $this->assertResponseIsSuccessful();
+
+        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $this->assertSame('RER B', $data['line']);
+        $this->assertNotEmpty($data['departures']);
+        foreach ($data['departures'] as $departure) {
+            $this->assertSame('RER B', $departure['lineCode']);
+        }
+    }
+
+    public function testDeparturesListsEveryLineOfTheStopWhateverTheFilter(): void
+    {
+        // Les boutons de filtre du client sont construits a partir de « lines » : ils doivent
+        // rester au complet une fois une ligne selectionnee, sinon on ne peut plus en changer.
+        $this->client->request('GET', '/api/schedules/stop:RERA:gare_nord?line=RER%20B');
+        $this->assertResponseIsSuccessful();
+
+        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $this->assertSame(['RER B', 'RER D'], array_column($data['lines'], 'lineCode'));
+    }
+
+    public function testDeparturesLimitRaisesTheNumberOfResults(): void
+    {
+        $this->client->request('GET', '/api/schedules/stop:RERA:gare_nord');
+        $parDefaut = json_decode($this->client->getResponse()->getContent(), true)['departures'];
+
+        $this->client->request('GET', '/api/schedules/stop:RERA:gare_nord?limit=40');
+        $this->assertResponseIsSuccessful();
+        $complet = json_decode($this->client->getResponse()->getContent(), true)['departures'];
+
+        $this->assertCount(5, $parDefaut);
+        $this->assertGreaterThan(count($parDefaut), count($complet));
+    }
+
     public function testDeparturesContainsDepartureFields(): void
     {
         $this->client->request('GET', '/api/schedules/stop:RERA:gare_nord');

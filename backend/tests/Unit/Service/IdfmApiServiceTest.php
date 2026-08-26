@@ -507,6 +507,58 @@ class IdfmApiServiceTest extends TestCase
         $this->assertSame('Boissy-Saint-Léger', $rer[0]['direction']);
     }
 
+    public function testGetDeparturesFiltersByLine(): void
+    {
+        // A Gare du Nord on veut les passages du RER A sans ceux du metro : le filtre porte sur
+        // le code public de la ligne, quels que soient sa casse et ses espaces.
+        $visites = [];
+        foreach ([['C01374', 2], ['C01742', 4], ['C01374', 6], ['C01742', 8]] as [$ligne, $minutes]) {
+            $visites[] = $this->visiteSiri($ligne, 'Terminus', (new \DateTimeImmutable("+{$minutes} minutes"))->format(DATE_ATOM));
+        }
+
+        $this->httpClient->method('request')->willReturnCallback($this->reponsesSiri($visites));
+        $service = $this->createService('test-api-key');
+
+        $rer = $service->getNextDepartures('stop_area:IDFM:71410', null, 'rer a');
+
+        $this->assertCount(2, $rer);
+        $this->assertSame(['RER A'], array_unique(array_column($rer, 'lineCode')));
+    }
+
+    public function testGetDeparturesLimitRaisesTheNumberOfResults(): void
+    {
+        // La page Horaires affiche tous les passages d'un arret, la ou l'accueil s'en tient aux
+        // cinq prochains : c'est le seul role de ?limit.
+        $visites = [];
+        foreach (range(1, 8) as $minutes) {
+            $visites[] = $this->visiteSiri('C01107', 'Rhin Et Danube', (new \DateTimeImmutable("+{$minutes} minutes"))->format(DATE_ATOM));
+        }
+
+        $this->httpClient->method('request')->willReturnCallback($this->reponsesSiri($visites));
+        $service = $this->createService('test-api-key');
+
+        $this->assertCount(5, $service->getNextDepartures('stop_area:IDFM:71249'));
+        $this->assertCount(8, $service->getNextDepartures('stop_area:IDFM:71249', null, null, 40));
+    }
+
+    public function testGetDepartureLinesListsEachLineOnceOrderedByMode(): void
+    {
+        $visites = [
+            $this->visiteSiri('C01107', 'Rhin Et Danube', (new \DateTimeImmutable('+2 minutes'))->format(DATE_ATOM)),
+            $this->visiteSiri('C01742', 'Boissy-Saint-Leger', (new \DateTimeImmutable('+3 minutes'))->format(DATE_ATOM)),
+            $this->visiteSiri('C01107', 'Rhin Et Danube', (new \DateTimeImmutable('+9 minutes'))->format(DATE_ATOM)),
+            $this->visiteSiri('C01374', 'Porte de Clignancourt', (new \DateTimeImmutable('+4 minutes'))->format(DATE_ATOM)),
+        ];
+
+        $this->httpClient->method('request')->willReturnCallback($this->reponsesSiri($visites));
+
+        $lignes = $this->createService('test-api-key')->getDepartureLines('stop_area:IDFM:71410');
+
+        // Le bus 72 passe deux fois mais ne doit apparaitre qu'une, et apres les modes lourds.
+        $this->assertSame(['M4', 'RER A', '72'], array_column($lignes, 'lineCode'));
+        $this->assertSame(['METRO', 'RER', 'BUS'], array_column($lignes, 'transportType'));
+    }
+
     public function testGetDeparturesWithoutMatchingTypeReturnsNothing(): void
     {
         $this->httpClient->method('request')->willReturnCallback($this->reponsesSiri([

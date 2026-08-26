@@ -86,7 +86,7 @@ projet/
 | GET     | /api/auth/me               | Profil utilisateur              | Oui  |
 | GET     | /api/stops/search?q=       | Recherche d'arrêts              | Non  |
 | GET     | /api/stops/nearby?lat&lon  | Arrêts à proximité              | Non  |
-| GET     | /api/schedules/{stopId}    | Prochains départs               | Non  |
+| GET     | /api/schedules/{stopId}    | Prochains départs (`?type=` mode, `?line=` ligne, `?limit=` jusqu'à 40) | Non  |
 | GET     | /api/alerts                | Alertes trafic                  | Non  |
 | GET     | /api/favorites             | Mes favoris                     | Oui  |
 | POST    | /api/favorites             | Ajouter un favori               | Oui  |

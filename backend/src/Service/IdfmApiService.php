@@ -307,9 +307,56 @@ class IdfmApiService
     // ─── Departures ────────────────────────────────────────────────────────
 
     /**
-     * @param string|null $type METRO, RER, TRAM ou BUS pour ne garder que ce mode
+     * @param string|null $type  METRO, RER, TRAM ou BUS pour ne garder que ce mode
+     * @param string|null $line  code public d'une ligne (« RER B », « M4 ») pour ne garder qu'elle
+     * @param int|null    $limit nombre de départs renvoyés (par défaut DEPARTURES_DISPLAYED,
+     *                           plafonné à la profondeur gardée en cache)
      */
-    public function getNextDepartures(string $stopId, ?string $type = null): array
+    public function getNextDepartures(string $stopId, ?string $type = null, ?string $line = null, ?int $limit = null): array
+    {
+        return $this->filterDepartures($this->loadDepartures($stopId), $type, $line, $limit);
+    }
+
+    /**
+     * Lignes qui desservent réellement l'arrêt, déduites de ses prochains passages : c'est ce
+     * qui alimente les filtres par ligne de la page Horaires. Les déduire des départs plutôt
+     * que de la fiche de l'arrêt évite de proposer une ligne dont plus rien ne part (nuit,
+     * interruption) et ne coûte aucun appel : la liste complète est déjà en cache.
+     *
+     * @return array<int, array{lineCode: string, transportType: string}>
+     */
+    public function getDepartureLines(string $stopId): array
+    {
+        $lines = [];
+        foreach ($this->loadDepartures($stopId) as $departure) {
+            $code = (string) ($departure['lineCode'] ?? '');
+            if ('' === $code) {
+                continue;
+            }
+            $lines[$this->normaliserCodeLigne($code)] = [
+                'lineCode' => $code,
+                'transportType' => (string) ($departure['transportType'] ?? 'BUS'),
+            ];
+        }
+
+        // Même ordre que les badges d'un arrêt : métro, RER, tram puis bus, chacun trié
+        // naturellement (« M4 » avant « M11 », « 72 » avant « 350 »).
+        $lines = array_values($lines);
+        usort($lines, function (array $a, array $b): int {
+            $rangA = self::MODE_PRIORITY[$a['transportType']] ?? 9;
+            $rangB = self::MODE_PRIORITY[$b['transportType']] ?? 9;
+
+            return $rangA === $rangB ? strnatcmp($a['lineCode'], $b['lineCode']) : $rangA <=> $rangB;
+        });
+
+        return $lines;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>> tous les prochains passages de l'arrêt, modes et
+     *                                          lignes confondus
+     */
+    private function loadDepartures(string $stopId): array
     {
         $cacheKey = 'departures_'.md5($stopId);
         $cacheItem = $this->cache->getItem($cacheKey);
@@ -329,7 +376,7 @@ class IdfmApiService
             $this->cache->save($cacheItem);
         }
 
-        return $this->filterDepartures($data, $type);
+        return $data;
     }
 
     /**
@@ -342,7 +389,7 @@ class IdfmApiService
      *
      * @return array<int, array<string, mixed>>
      */
-    private function filterDepartures(array $departures, ?string $type): array
+    private function filterDepartures(array $departures, ?string $type, ?string $line = null, ?int $limit = null): array
     {
         if (null !== $type && '' !== $type) {
             $type = strtoupper($type);
@@ -352,7 +399,17 @@ class IdfmApiService
             ));
         }
 
-        return \array_slice($departures, 0, self::DEPARTURES_DISPLAYED);
+        // « RER B », « rer b » et « rerb » désignent la même ligne : c'est ce filtre qui permet
+        // de ne voir que le RER B à Gare du Nord, sans les métros ni les autres RER.
+        if (null !== $line && '' !== $line) {
+            $line = $this->normaliserCodeLigne($line);
+            $departures = array_values(array_filter(
+                $departures,
+                fn (array $departure): bool => $this->normaliserCodeLigne((string) ($departure['lineCode'] ?? '')) === $line
+            ));
+        }
+
+        return \array_slice($departures, 0, min(max(1, $limit ?? self::DEPARTURES_DISPLAYED), self::DEPARTURES_KEPT));
     }
 
     /**
