@@ -105,6 +105,29 @@ class FavoriteControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(400);
     }
 
+    public function testAddFavoriteAcceptsStopWithoutLine(): void
+    {
+        ['token' => $token] = $this->authenticate();
+
+        // La recherche de proximité renvoie des arrêts sans aucune ligne rattachée : le frontend
+        // envoie alors un lineCode vide, qui doit rester acceptable.
+        $this->client->request(
+            'POST',
+            '/api/favorites',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$token],
+            json_encode([
+                'stopId' => 'stop_area:IDFM:73797',
+                'stopName' => 'Tour Eiffel',
+                'lineCode' => '',
+                'transportType' => 'BUS',
+            ])
+        );
+
+        $this->assertResponseStatusCodeSame(201);
+    }
+
     public function testReorderFavoriteRejectsOutOfRangeSortOrder(): void
     {
         ['token' => $token] = $this->authenticate();

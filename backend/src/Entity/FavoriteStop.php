@@ -29,8 +29,10 @@ class FavoriteStop
     #[Assert\NotBlank]
     private ?string $stopName = null;
 
+    // Pas de NotBlank : IDFM ne rattache aucune ligne aux arrêts renvoyés par la recherche
+    // de proximité, le frontend envoie alors une chaîne vide. L'exiger rendait impossible la
+    // mise en favori d'un arrêt trouvé « à proximité ».
     #[ORM\Column(length: 20)]
-    #[Assert\NotBlank]
     private ?string $lineCode = null;
 
     #[ORM\Column(length: 10)]
