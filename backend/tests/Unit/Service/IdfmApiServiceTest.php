@@ -668,6 +668,62 @@ class IdfmApiServiceTest extends TestCase
         );
     }
 
+    public function testJourneySectionsDistinguishWaitingFromWalking(): void
+    {
+        $depart = (new \DateTimeImmutable('+10 minutes'))->format('Ymd\THis');
+        $milieu = (new \DateTimeImmutable('+30 minutes'))->format('Ymd\THis');
+        $arrivee = (new \DateTimeImmutable('+50 minutes'))->format('Ymd\THis');
+
+        $apiResponse = $this->createMock(ResponseInterface::class);
+        $apiResponse->method('toArray')->willReturn([
+            'journeys' => [[
+                'departure_date_time' => $depart,
+                'arrival_date_time' => $arrivee,
+                'duration' => 2400,
+                'nb_transfers' => 1,
+                'sections' => [
+                    [
+                        'type' => 'public_transport',
+                        'duration' => 1200,
+                        'departure_date_time' => $depart,
+                        'arrival_date_time' => $milieu,
+                        'display_informations' => ['commercial_mode' => 'TER', 'code' => 'TER'],
+                        'from' => ['name' => 'Versailles Chantiers'],
+                        'to' => ['name' => 'Gare Montparnasse'],
+                    ],
+                    [
+                        'type' => 'waiting',
+                        'duration' => 300,
+                        'departure_date_time' => $milieu,
+                        'arrival_date_time' => $milieu,
+                    ],
+                    [
+                        'type' => 'public_transport',
+                        'duration' => 900,
+                        'departure_date_time' => $milieu,
+                        'arrival_date_time' => $arrivee,
+                        'display_informations' => ['commercial_mode' => 'Métro', 'code' => '13'],
+                        'from' => ['name' => 'Montparnasse Bienvenue'],
+                        'to' => ['name' => 'Saint-Lazare'],
+                    ],
+                ],
+            ]],
+        ]);
+
+        $this->httpClient->method('request')->willReturn($apiResponse);
+
+        $journeys = $this->createService('test-api-key')->searchJourneys('stop_area:IDFM:63880', 'stop_area:IDFM:71370');
+        $sections = $journeys[0]['sections'];
+
+        // Un TER est un train : l affichage doit lui donner la couleur du RER, pas celle du bus.
+        $this->assertSame('RER', $sections[0]['mode']);
+        $this->assertSame('TER', $sections[0]['lineCode']);
+        // Une attente sur le quai n est pas une marche.
+        $this->assertSame('WAIT', $sections[1]['mode']);
+        $this->assertSame('METRO', $sections[2]['mode']);
+        $this->assertSame('M13', $sections[2]['lineCode']);
+    }
+
     public function testGetAlertsIncludesStructuringLineReports(): void
     {
         // Les perturbations du reseau structurant sont collectees ligne par ligne, dans une

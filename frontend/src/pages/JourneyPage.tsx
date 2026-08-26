@@ -102,7 +102,11 @@ export function JourneyPage() {
                     {/* Trajet vers l'arrêt suivant */}
                     <div className="flex items-center gap-2 py-1 pl-1">
                       <span className="w-2.5 shrink-0 text-center text-gray-300">│</span>
-                      {section.mode === 'WALK' ? (
+                      {section.mode === 'WAIT' ? (
+                        <span className="text-xs text-gray-500">
+                          ⏳ attente · {section.durationMinutes} min
+                        </span>
+                      ) : section.mode === 'WALK' ? (
                         <span className="flex items-center gap-1 text-xs text-gray-500">
                           🚶 à pied · {section.durationMinutes} min
                         </span>

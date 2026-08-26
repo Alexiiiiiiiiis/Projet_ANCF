@@ -41,7 +41,7 @@ export interface TrafficAlert {
 
 export interface JourneySection {
   type: string
-  mode: TransportType | 'WALK'
+  mode: TransportType | 'WALK' | 'WAIT'
   lineCode: string | null
   direction: string | null
   from: string | null

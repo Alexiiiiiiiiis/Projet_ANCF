@@ -601,12 +601,19 @@ class IdfmApiService
                 $info = $section['display_informations'] ?? [];
                 $modeName = $info['commercial_mode'] ?? 'walking';
 
+                $type = $section['type'] ?? 'transfer';
+
                 $sections[] = [
-                    'type' => $section['type'] ?? 'transfer',
-                    'mode' => ($section['type'] ?? '') === 'public_transport'
-                        ? $this->mapTransportType($modeName)
-                        : 'WALK',
-                    'lineCode' => ($section['type'] ?? '') === 'public_transport'
+                    'type' => $type,
+                    // WAIT plutôt que WALK sur les sections d'attente : l'écran les annonçait
+                    // « à pied », donnant un trajet à deux marches successives là où la seconde
+                    // est en réalité une attente sur le quai.
+                    'mode' => match ($type) {
+                        'public_transport' => $this->mapTransportType($modeName),
+                        'waiting' => 'WAIT',
+                        default => 'WALK',
+                    },
+                    'lineCode' => 'public_transport' === $type
                         ? $this->formatLineLabel($modeName, $info['code'] ?? '?')
                         : null,
                     'direction' => $info['direction'] ?? null,
@@ -1120,9 +1127,10 @@ class IdfmApiService
 
     private function formatLineLabel(string $modeName, string $code): string
     {
-        // Le Transilien (H, J, K, L, N, P, R, U, V) est assimilé au type RER pour le filtrage,
-        // mais garde son code brut : "RER J" n'existe pas, ces lignes s'appellent juste "J".
-        if (in_array(strtolower($modeName), ['train transilien', 'transilien'], true)) {
+        // Le Transilien (H, J, K, L, N, P, R, U, V) et le TER sont assimilés au type RER pour le
+        // filtrage, mais gardent leur code brut : "RER J" n'existe pas, ces lignes s'appellent
+        // juste "J", et un TER reste un "TER".
+        if (in_array(strtolower($modeName), ['train transilien', 'transilien', 'ter', 'longdistancetrain', 'long distance train'], true)) {
             return $code;
         }
 
@@ -1138,7 +1146,9 @@ class IdfmApiService
         return match (strtolower($mode)) {
             'metro', 'métro', 'subway' => 'METRO',
             'rer', 'rail', 'train', 'rapid_transit', 'rapidtransit', 'localtrain', 'local train',
-            'train transilien', 'transilien' => 'RER',
+            // Le TER dessert quelques gares franciliennes (Versailles Chantiers, Mantes) : sans
+            // lui, un train régional s'affichait avec la couleur et l'icône du bus.
+            'train transilien', 'transilien', 'ter', 'longdistancetrain', 'long distance train' => 'RER',
             'tram', 'tramway', 'tram_train' => 'TRAM',
             default => 'BUS',
         };
