@@ -456,7 +456,7 @@ class IdfmApiService
         }
 
         $data = empty($this->apiKey)
-            ? $this->getMockAlerts()
+            ? $this->getMockAlerts($lineId)
             : $this->fetchAlertsFromApi($lineId);
 
         $cacheItem->set($data)->expiresAfter(self::ALERTS_TTL);
@@ -478,7 +478,7 @@ class IdfmApiService
                 unset($disruption);
             }
 
-            return $disruptions ? $this->normalizeAlertsResponse(['disruptions' => $disruptions]) : $this->getMockAlerts();
+            return $disruptions ? $this->normalizeAlertsResponse(['disruptions' => $disruptions]) : $this->getMockAlerts($lineId);
         }
 
         // Le flux global /disruptions contient ~5000 perturbations pour tout le réseau (dont
@@ -999,9 +999,13 @@ class IdfmApiService
         return $departures;
     }
 
-    private function getMockAlerts(): array
+    /**
+     * @param string|null $lineId identifiant IDFM (« line:IDFM:C01384 ») ou code affiché (« M14 »)
+     *                            — l'appelant public utilise le second, la vraie API le premier
+     */
+    private function getMockAlerts(?string $lineId = null): array
     {
-        return [
+        $alertes = [
             [
                 'id' => 'alert-1',
                 'lineCode' => 'M1',
@@ -1051,6 +1055,27 @@ class IdfmApiService
                 'endDate' => date('c', strtotime('+12 days')),
             ],
         ];
+
+        if (null === $lineId) {
+            return $alertes;
+        }
+
+        // Sans ce filtre, demander les alertes de M14 renvoyait celles de tout le réseau : la
+        // branche avec clé API, elle, interroge /lines/{id}/line_reports et ne remonte donc que
+        // la ligne demandée. Les deux modes doivent répondre à la même question.
+        $code = self::STRUCTURING_LINES[$lineId][0] ?? $lineId;
+        $code = $this->normaliserCodeLigne($code);
+
+        return array_values(array_filter(
+            $alertes,
+            fn (array $alerte) => $this->normaliserCodeLigne($alerte['lineCode']) === $code
+        ));
+    }
+
+    /** « RER B », « rer b » et « rerb » désignent la même ligne. */
+    private function normaliserCodeLigne(string $code): string
+    {
+        return str_replace([' ', '-'], '', mb_strtolower($code, 'UTF-8'));
     }
 
     private function getAllMockStops(): array
