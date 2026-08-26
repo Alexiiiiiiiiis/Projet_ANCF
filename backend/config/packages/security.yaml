@@ -45,8 +45,9 @@ security:
         - { path: ^/api/auth/reset-password, roles: PUBLIC_ACCESS }
         - { path: ^/api/stops, roles: PUBLIC_ACCESS }
         - { path: ^/api/schedules, roles: PUBLIC_ACCESS }
+        - { path: ^/api/lines, roles: PUBLIC_ACCESS }
         - { path: ^/api/alerts, roles: PUBLIC_ACCESS }
-        # Recherche d'arrêts, horaires et alertes restent consultables sans compte : c'est
+        # Recherche d'arrêts, lignes, horaires et alertes restent consultables sans compte : c'est
         # l'information de service, elle n'a pas à être derrière un mur. Le calcul d'itinéraire,
         # lui, est réservé aux membres — et c'est aussi l'appel le plus coûteux en quota IDFM.
         - { path: ^/api/journeys, roles: IS_AUTHENTICATED_FULLY }

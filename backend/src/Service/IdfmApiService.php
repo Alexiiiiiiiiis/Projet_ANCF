@@ -11,6 +11,22 @@ class IdfmApiService
     private const DEPARTURES_TTL = 30;   // seconds
     private const DEPARTURES_DISPLAYED = 5;  // départs renvoyés par l'API
     private const DEPARTURES_KEPT = 40;      // profondeur gardée en cache, pour servir les filtres
+    private const LINES_TTL = 86400;     // 24 h — le catalogue des lignes ne bouge pas dans la journée
+    private const LINES_PAGE_SIZE = 1000;
+    private const LINES_MAX_PAGES = 3;   // le réseau bus compte ~2000 lignes, Navitia les pagine
+    private const LINE_STOPS_MAX = 500;  // la plus longue ligne francilienne dessert ~60 arrêts
+
+    /**
+     * Modes commerciaux Navitia derrière chaque onglet de la page Horaires. Le Transilien
+     * partage l'onglet RER, comme dans l'application Île-de-France Mobilités (« Train H »).
+     */
+    private const COMMERCIAL_MODES = [
+        'METRO' => ['commercial_mode:Metro'],
+        'RER' => ['commercial_mode:RapidTransit', 'commercial_mode:LocalTrain'],
+        'TRAM' => ['commercial_mode:Tramway'],
+        'BUS' => ['commercial_mode:Bus'],
+    ];
+
     private const STOP_LINES_TTL = 86400; // 24 h — le code public d'une ligne ne bouge pas dans la journée
     private const STOPS_TTL = 300;       // 5 minutes
     private const JOURNEYS_TTL = 300;    // 5 minutes — mutualise le quota entre utilisateurs cherchant le même trajet
@@ -304,6 +320,302 @@ class IdfmApiService
         }
     }
 
+    // ─── Lines (parcours Horaires : mode → ligne → arrêt) ──────────────────
+
+    /** Modes acceptés par getLines(). */
+    public static function lineTypes(): array
+    {
+        return array_keys(self::COMMERCIAL_MODES);
+    }
+
+    /**
+     * Toutes les lignes d'un mode, comme les onglets RER / Métro / Tram / Bus de l'app IDFM.
+     *
+     * @param string $type METRO, RER, TRAM ou BUS
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getLines(string $type): array
+    {
+        $type = strtoupper($type);
+        $modes = self::COMMERCIAL_MODES[$type] ?? null;
+        if (null === $modes) {
+            return [];
+        }
+
+        $cacheItem = $this->cache->getItem('lines_'.$type);
+        if ($cacheItem->isHit()) {
+            return $cacheItem->get();
+        }
+
+        $lines = empty($this->apiKey) ? $this->getMockLines($type) : $this->fetchLinesFromApi($modes);
+        if ([] === $lines) {
+            // Une panne amont ne doit pas remplir le cache de 24 h avec un onglet vide.
+            return $this->getMockLines($type);
+        }
+
+        // « M4 » avant « M11 », « 72 » avant « 350 » : strnatcasecmp lit les nombres comme
+        // des nombres, là où un tri alphabétique placerait « 350 » avant « 72 ».
+        usort($lines, static fn (array $a, array $b): int => strnatcasecmp($a['code'], $b['code']));
+
+        $cacheItem->set($lines)->expiresAfter(self::LINES_TTL);
+        $this->cache->save($cacheItem);
+
+        return $lines;
+    }
+
+    /**
+     * @param array<int, string> $commercialModes
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function fetchLinesFromApi(array $commercialModes): array
+    {
+        $lines = [];
+
+        foreach ($commercialModes as $mode) {
+            try {
+                for ($page = 0; $page < self::LINES_MAX_PAGES; ++$page) {
+                    $response = $this->httpClient->request('GET', $this->apiBaseUrl."/commercial_modes/{$mode}/lines", [
+                        'headers' => ['apikey' => $this->apiKey],
+                        'query' => ['count' => self::LINES_PAGE_SIZE, 'start_page' => $page],
+                        'timeout' => 8,
+                    ]);
+                    $this->recordApiQuota($response, 'navitia');
+
+                    $batch = $response->toArray()['lines'] ?? [];
+                    foreach ($batch as $line) {
+                        $lines[] = $this->normalizeLine($line);
+                    }
+
+                    if (count($batch) < self::LINES_PAGE_SIZE) {
+                        break;
+                    }
+                }
+            } catch (\Throwable) {
+                // Un mode indisponible ne doit pas vider les onglets des autres.
+            }
+        }
+
+        return $lines;
+    }
+
+    /** @return array<string, mixed>|null null si la ligne n'existe pas */
+    public function getLine(string $lineId): ?array
+    {
+        $cacheItem = $this->cache->getItem('line_'.md5($lineId));
+        if ($cacheItem->isHit()) {
+            return $cacheItem->get();
+        }
+
+        $line = empty($this->apiKey) ? $this->getMockLine($lineId) : $this->fetchLineFromApi($lineId);
+        if (null === $line) {
+            return null;
+        }
+
+        $cacheItem->set($line)->expiresAfter(self::LINES_TTL);
+        $this->cache->save($cacheItem);
+
+        return $line;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function fetchLineFromApi(string $lineId): ?array
+    {
+        try {
+            $response = $this->httpClient->request('GET', $this->apiBaseUrl."/lines/{$lineId}", [
+                'headers' => ['apikey' => $this->apiKey],
+                'query' => ['count' => 1],
+                'timeout' => 5,
+            ]);
+            $this->recordApiQuota($response, 'navitia');
+
+            $line = $response->toArray()['lines'][0] ?? null;
+
+            return null === $line ? $this->getMockLine($lineId) : $this->normalizeLine($line);
+        } catch (\Throwable) {
+            return $this->getMockLine($lineId);
+        }
+    }
+
+    /**
+     * Arrêts desservis par une ligne, dans l'ordre alphabétique de la liste d'arrêts d'IDFM.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getLineStops(string $lineId): array
+    {
+        $cacheItem = $this->cache->getItem('line_stops_'.md5($lineId));
+        if ($cacheItem->isHit()) {
+            return $cacheItem->get();
+        }
+
+        $line = $this->getLine($lineId);
+        if (null === $line) {
+            return [];
+        }
+
+        $stops = empty($this->apiKey)
+            ? $this->getMockLineStops($line['lineCode'], self::LINE_STOPS_MAX)
+            : $this->fetchLineStopsFromApi($lineId, $line);
+
+        // Tri insensible aux accents : « Élysée » se range avec les E, pas après les Z.
+        usort($stops, fn (array $a, array $b): int => strnatcasecmp(
+            $this->normaliserLibelle($a['name']),
+            $this->normaliserLibelle($b['name'])
+        ));
+
+        if ([] !== $stops) {
+            $cacheItem->set($stops)->expiresAfter(self::LINES_TTL);
+            $this->cache->save($cacheItem);
+        }
+
+        return $stops;
+    }
+
+    /**
+     * @param array<string, mixed> $line
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function fetchLineStopsFromApi(string $lineId, array $line): array
+    {
+        try {
+            $response = $this->httpClient->request('GET', $this->apiBaseUrl."/lines/{$lineId}/stop_areas", [
+                'headers' => ['apikey' => $this->apiKey],
+                'query' => ['count' => self::LINE_STOPS_MAX],
+                'timeout' => 8,
+            ]);
+            $this->recordApiQuota($response, 'navitia');
+
+            $stops = [];
+            foreach ($response->toArray()['stop_areas'] ?? [] as $stopArea) {
+                $stop = $this->normalizeStopArea($stopArea);
+                // Les stop_areas listés par une ligne n'exposent pas leurs commercial_modes :
+                // sans cette reprise, tous les arrêts d'un RER s'afficheraient en bus.
+                $stop['transportType'] = $line['transportType'];
+                $stop['lines'] = [$line['lineCode']];
+                $stops[] = $stop;
+            }
+
+            return $stops;
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $line
+     *
+     * @return array<string, mixed>
+     */
+    private function normalizeLine(array $line): array
+    {
+        $modeName = $line['commercial_mode']['name'] ?? 'bus';
+        $code = (string) ($line['code'] ?? ($line['name'] ?? '?'));
+
+        return [
+            'id' => (string) ($line['id'] ?? ''),
+            // Trois libellés, trois usages : le code nu pour la pastille, le libellé public
+            // pour le titre, et le code tel que l'annoncent les horaires — c'est lui qui
+            // filtre les départs d'un arrêt (?line=).
+            'code' => $code,
+            'label' => $this->formatLineName($modeName, $code),
+            'lineCode' => $this->formatLineLabel($modeName, $code),
+            'transportType' => $this->mapTransportType($modeName),
+            'color' => $this->formatColor($line['color'] ?? null),
+            'textColor' => $this->formatColor($line['text_color'] ?? null),
+            // Une trentaine de numéros de bus sont partagés par plusieurs réseaux (« 1 » existe
+            // chez ADP comme à Argenteuil) : sans le réseau, la liste afficherait des doublons
+            // impossibles à distinguer.
+            'network' => $line['network']['name'] ?? null,
+        ];
+    }
+
+    /** « FFBE00 » → « #FFBE00 » ; null si absente, le client retombe sur la couleur du mode. */
+    private function formatColor(?string $color): ?string
+    {
+        $color = trim((string) $color, " #\t\n\r\0\x0B");
+
+        return 1 === preg_match('/^[0-9a-f]{6}$/i', $color) ? '#'.strtoupper($color) : null;
+    }
+
+    /** Libellé affiché dans la liste des lignes : « RER A », « Train H », « Métro 4 », « Bus 72 ». */
+    private function formatLineName(string $modeName, string $code): string
+    {
+        $mode = strtolower($modeName);
+        if (in_array($mode, ['train transilien', 'transilien'], true)) {
+            return 'Train '.$code;
+        }
+        if (in_array($mode, ['ter', 'longdistancetrain', 'long distance train'], true)) {
+            return $code;
+        }
+
+        return match ($this->mapTransportType($modeName)) {
+            'METRO' => 'Métro '.$code,
+            'RER' => 'RER '.$code,
+            // Le code d'un tram porte déjà son T (« T3a ») : « Tram T3a » bégaierait.
+            'TRAM' => $code,
+            default => 'Bus '.$code,
+        };
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function getMockLines(string $type): array
+    {
+        $lines = [];
+
+        foreach (self::STRUCTURING_LINES as $id => [$lineCode, $lineType]) {
+            if ($lineType !== $type) {
+                continue;
+            }
+            // « RER A » → « A », « M14 » → « 14 » : la pastille ne porte que le code nu.
+            $code = str_starts_with($lineCode, 'RER ') ? substr($lineCode, 4) : substr($lineCode, 1);
+            $lines[] = [
+                'id' => $id,
+                'code' => $code,
+                'label' => ('RER' === $type ? 'RER ' : 'Métro ').$code,
+                'lineCode' => $lineCode,
+                'transportType' => $type,
+                'color' => null,
+                'textColor' => null,
+                'network' => null,
+            ];
+        }
+
+        // Le tram et le bus n'ont pas de ligne structurante déclarée : sans ces quelques
+        // exemples, leurs onglets seraient vides tant qu'aucune clé API n'est configurée.
+        $exemples = ['TRAM' => ['T1', 'T2', 'T3a', 'T3b'], 'BUS' => ['38', '72', '91', '96']];
+        foreach ($exemples[$type] ?? [] as $code) {
+            $lines[] = [
+                'id' => 'line:IDFM:mock_'.$code,
+                'code' => $code,
+                'label' => 'TRAM' === $type ? $code : 'Bus '.$code,
+                'lineCode' => $code,
+                'transportType' => $type,
+                'color' => null,
+                'textColor' => null,
+                'network' => null,
+            ];
+        }
+
+        return $lines;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function getMockLine(string $lineId): ?array
+    {
+        foreach (self::lineTypes() as $type) {
+            foreach ($this->getMockLines($type) as $line) {
+                if ($line['id'] === $lineId) {
+                    return $line;
+                }
+            }
+        }
+
+        return null;
+    }
+
     // ─── Departures ────────────────────────────────────────────────────────
 
     /**
@@ -508,6 +820,9 @@ class IdfmApiService
                 'waitMinutes' => $waitMinutes,
                 'isRealtime' => null !== $realtime,
                 'platform' => null,
+                // Heure de passage en clair : « départ à 8h12 » reste juste quand la page est
+                // restée ouverte, là où le nombre de minutes vieillit avec le cache.
+                'departureTime' => $departureTime->format(DATE_ATOM),
                 '_ordre' => $departureTime->getTimestamp(),
             ];
         }
@@ -865,9 +1180,6 @@ class IdfmApiService
                     break;
                 }
             }
-                // Heure de passage en clair : « départ à 8h12 » reste juste quand la page est
-                // restée ouverte, là où le nombre de minutes vieillit avec le cache.
-                'departureTime' => $departureTime->format(DATE_ATOM),
         } catch (\Throwable) {
             // On garde ce qui a déjà été récupéré avant l'échec.
         }
@@ -988,6 +1300,7 @@ class IdfmApiService
                 'waitMinutes' => max(0, $waitMinutes),
                 'isRealtime' => ($stopDateTime['data_freshness'] ?? '') === 'realtime',
                 'platform' => $dep['stop_point']['platform_code'] ?? null,
+                'departureTime' => $departureTime->format(DATE_ATOM),
             ];
         }
 
@@ -1310,6 +1623,7 @@ class IdfmApiService
                     // ferait passer une panne de l'API IDFM pour de la donnée vérifiée.
                     'isRealtime' => false,
                     'platform' => null,
+                    'departureTime' => (new \DateTimeImmutable("+{$wait} minutes"))->format(DATE_ATOM),
                 ];
             }
         }
@@ -1345,7 +1659,6 @@ class IdfmApiService
                 'transportType' => 'RER',
                 'severity' => 'MODERATE',
                 'category' => 'INCIDENT',
-                'departureTime' => $departureTime->format(DATE_ATOM),
                 'title' => 'Ralentissements +5-10 min sur le RER B',
                 'description' => 'Suite à un incident technique à Gare du Nord, des ralentissements de 5 à 10 minutes sont à prévoir.',
                 'estimatedResume' => null,
@@ -1477,4 +1790,3 @@ class IdfmApiService
         ];
     }
 }
-                    'departureTime' => (new \DateTimeImmutable("+{$wait} minutes"))->format(DATE_ATOM),

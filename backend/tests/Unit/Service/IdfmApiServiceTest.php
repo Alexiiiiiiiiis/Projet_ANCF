@@ -507,6 +507,81 @@ class IdfmApiServiceTest extends TestCase
         $this->assertSame('Boissy-Saint-Léger', $rer[0]['direction']);
     }
 
+    // --- Lignes (parcours Horaires) -----------------------------------------
+
+    public function testGetLinesSortsCodesNaturally(): void
+    {
+        // Sans cle API, les lignes structurantes servent de catalogue : « 10 » doit suivre
+        // « 9 », la ou un tri alphabetique le placerait entre « 1 » et « 2 ».
+        $codes = array_column($this->createService('')->getLines('METRO'), 'code');
+
+        $this->assertSame(
+            ['1', '2', '3', '3B', '4', '5', '6', '7', '7B', '8', '9', '10', '11', '12', '13', '14'],
+            $codes
+        );
+    }
+
+    public function testGetLinesRejectsUnknownMode(): void
+    {
+        $this->assertSame([], $this->createService('')->getLines('TROTTINETTE'));
+    }
+
+    public function testGetLinesReadsCodeColorAndNetworkFromApi(): void
+    {
+        // L'onglet RER interroge deux modes commerciaux : le RER et le Transilien.
+        $rer = $this->createMock(ResponseInterface::class);
+        $rer->method('toArray')->willReturn(['lines' => [
+            ['id' => 'line:IDFM:C01742', 'code' => 'A', 'color' => 'EB2132', 'text_color' => 'FFFFFF',
+                'commercial_mode' => ['name' => 'RER'], 'network' => ['name' => 'RATP']],
+        ]]);
+
+        $transilien = $this->createMock(ResponseInterface::class);
+        $transilien->method('toArray')->willReturn(['lines' => [
+            ['id' => 'line:IDFM:C01744', 'code' => 'H', 'color' => '84653D',
+                'commercial_mode' => ['name' => 'Train Transilien'], 'network' => ['name' => 'SNCF']],
+        ]]);
+
+        $this->httpClient->method('request')->willReturnCallback(
+            fn (string $method, string $url) => str_contains($url, 'RapidTransit') ? $rer : $transilien
+        );
+
+        $lignes = $this->createService('test-api-key')->getLines('RER');
+
+        $this->assertSame(['A', 'H'], array_column($lignes, 'code'));
+        // Le libelle suit l app IDFM (« RER A », « Train H »)  la ou lineCode reste le code
+        // annonce par les horaires, celui qui filtre les departs d un arret.
+        $this->assertSame(['RER A', 'Train H'], array_column($lignes, 'label'));
+        $this->assertSame(['RER A', 'H'], array_column($lignes, 'lineCode'));
+        $this->assertSame(['#EB2132', '#84653D'], array_column($lignes, 'color'));
+        $this->assertSame(['RATP', 'SNCF'], array_column($lignes, 'network'));
+    }
+
+    public function testGetLineStopsSortsByNameAndKeepsTheLineMode(): void
+    {
+        $ligne = $this->createMock(ResponseInterface::class);
+        $ligne->method('toArray')->willReturn(['lines' => [
+            ['id' => 'line:IDFM:C01742', 'code' => 'A', 'commercial_mode' => ['name' => 'RER']],
+        ]]);
+
+        $arrets = $this->createMock(ResponseInterface::class);
+        $arrets->method('toArray')->willReturn(['stop_areas' => [
+            ['id' => 'stop_area:IDFM:1', 'name' => 'Auber', 'coord' => ['lat' => '48.87', 'lon' => '2.32']],
+            ['id' => 'stop_area:IDFM:2', 'name' => 'Acheres Ville', 'coord' => ['lat' => '48.97', 'lon' => '2.07']],
+        ]]);
+
+        $this->httpClient->method('request')->willReturnCallback(
+            fn (string $method, string $url) => str_contains($url, 'stop_areas') ? $arrets : $ligne
+        );
+
+        $stops = $this->createService('test-api-key')->getLineStops('line:IDFM:C01742');
+
+        $this->assertSame(['Acheres Ville', 'Auber'], array_column($stops, 'name'));
+        // Navitia n annonce pas les modes des arrets d une ligne : sans reprise du mode de la
+        // ligne, tous les arrets du RER A s afficheraient en bus.
+        $this->assertSame(['RER', 'RER'], array_column($stops, 'transportType'));
+        $this->assertSame([['RER A'], ['RER A']], array_column($stops, 'lines'));
+    }
+
     public function testGetDeparturesFiltersByLine(): void
     {
         // A Gare du Nord on veut les passages du RER A sans ceux du metro : le filtre porte sur
