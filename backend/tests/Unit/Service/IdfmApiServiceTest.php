@@ -593,6 +593,38 @@ class IdfmApiServiceTest extends TestCase
         );
     }
 
+    public function testGetAlertsIncludesStructuringLineReports(): void
+    {
+        // Les perturbations du reseau structurant sont collectees ligne par ligne, dans une
+        // boucle qui avale ses exceptions : une erreur la vidait sans que rien ne le signale.
+        $recemment = (new \DateTimeImmutable('-1 hour'))->format('Ymd\THis');
+
+        $lineReports = $this->createMock(ResponseInterface::class);
+        $lineReports->method('toArray')->willReturn([
+            'disruptions' => [
+                [
+                    'id' => 'perturbation-structurante',
+                    'status' => 'active',
+                    'severity' => ['effect' => 'BLOCKING'],
+                    'messages' => [['text' => 'Trafic interrompu', 'channel' => ['types' => ['title']]]],
+                    'application_periods' => [['begin' => $recemment]],
+                ],
+            ],
+        ]);
+
+        $flux = $this->createMock(ResponseInterface::class);
+        $flux->method('toArray')->willReturn(['disruptions' => []]);
+
+        $this->httpClient->method('request')->willReturnCallback(
+            fn (string $method, string $url) => str_contains($url, 'line_reports') ? $lineReports : $flux
+        );
+
+        $results = $this->createService('test-api-key')->getTrafficAlerts();
+
+        $ids = array_column($results, 'id');
+        $this->assertContains('perturbation-structurante', $ids);
+    }
+
     public function testGetLineAlertsCallsOnlyThatLine(): void
     {
         $apiResponse = $this->createMock(ResponseInterface::class);

@@ -719,7 +719,7 @@ class IdfmApiService
                 if (!$quotaRecorded) {
                     // Un seul enregistrement suffit : les 21 requêtes concurrentes reflètent
                     // quasiment le même état de quota, inutile d'écrire 21 fois dans le cache.
-                    $this->recordApiQuota($request['response']);
+                    $this->recordApiQuota($request['response'], 'navitia');
                     $quotaRecorded = true;
                 }
                 foreach ($request['response']->toArray()['disruptions'] ?? [] as $disruption) {
