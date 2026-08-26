@@ -39,6 +39,15 @@ class FavoriteStop
     #[Assert\Choice(choices: ['METRO', 'RER', 'TRAM', 'BUS'])]
     private ?string $transportType = null;
 
+    /**
+     * Un favori pointe soit un arrêt, soit une ligne entière : la page Horaires propose
+     * l'étoile aux deux, comme l'application Île-de-France Mobilités. Les deux vivent dans
+     * la même table, stopId portant alors l'identifiant de la ligne (« line:IDFM:C01742 »).
+     */
+    #[ORM\Column(length: 10, options: ['default' => 'STOP'])]
+    #[Assert\Choice(choices: ['STOP', 'LINE'])]
+    private string $kind = 'STOP';
+
     #[ORM\Column]
     private ?\DateTimeImmutable $addedAt = null;
 
@@ -116,6 +125,18 @@ class FavoriteStop
         return $this;
     }
 
+    public function getKind(): string
+    {
+        return $this->kind;
+    }
+
+    public function setKind(string $kind): static
+    {
+        $this->kind = $kind;
+
+        return $this;
+    }
+
     public function getAddedAt(): ?\DateTimeImmutable
     {
         return $this->addedAt;
@@ -141,6 +162,7 @@ class FavoriteStop
             'stopName' => $this->stopName,
             'lineCode' => $this->lineCode,
             'transportType' => $this->transportType,
+            'kind' => $this->kind,
             'addedAt' => $this->addedAt?->format(\DateTimeInterface::ATOM),
             'sortOrder' => $this->sortOrder,
         ];

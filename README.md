@@ -92,7 +92,7 @@ projet/
 | GET     | /api/lines/status?ids=     | État de trafic de plusieurs lignes | Non  |
 | GET     | /api/alerts                | Alertes trafic                  | Non  |
 | GET     | /api/favorites             | Mes favoris                     | Oui  |
-| POST    | /api/favorites             | Ajouter un favori               | Oui  |
+| POST    | /api/favorites             | Ajouter un favori — arrêt, ou ligne avec `kind: LINE` | Oui  |
 | GET     | /api/admin/stats           | Statistiques admin              | Admin|
 
 ## Sécurité

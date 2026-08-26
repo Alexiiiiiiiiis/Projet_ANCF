@@ -128,6 +128,76 @@ class FavoriteControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(201);
     }
 
+    public function testAddFavoriteAcceptsAWholeLine(): void
+    {
+        ['token' => $token] = $this->authenticate();
+
+        // La page Horaires propose l'etoile sur une ligne entiere, pas seulement sur un arret :
+        // stopId porte alors l'identifiant IDFM de la ligne, et kind dit ce qui est en favori.
+        $this->client->request(
+            'POST',
+            '/api/favorites',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$token],
+            json_encode([
+                'stopId' => 'line:IDFM:C01742',
+                'stopName' => 'RER A',
+                'lineCode' => 'RER A',
+                'transportType' => 'RER',
+                'kind' => 'LINE',
+            ])
+        );
+
+        $this->assertResponseStatusCodeSame(201);
+        $this->assertSame('LINE', json_decode($this->client->getResponse()->getContent(), true)['kind']);
+    }
+
+    public function testAddFavoriteDefaultsToStop(): void
+    {
+        ['token' => $token] = $this->authenticate();
+
+        // Un client qui n'envoie pas kind enregistre un arret, comme avant l'arrivee des lignes.
+        $this->client->request(
+            'POST',
+            '/api/favorites',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$token],
+            json_encode([
+                'stopId' => 'stop_area:IDFM:71410',
+                'stopName' => 'Gare du Nord',
+                'lineCode' => 'RER B',
+                'transportType' => 'RER',
+            ])
+        );
+
+        $this->assertResponseStatusCodeSame(201);
+        $this->assertSame('STOP', json_decode($this->client->getResponse()->getContent(), true)['kind']);
+    }
+
+    public function testAddFavoriteRejectsUnknownKind(): void
+    {
+        ['token' => $token] = $this->authenticate();
+
+        $this->client->request(
+            'POST',
+            '/api/favorites',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$token],
+            json_encode([
+                'stopId' => 'line:IDFM:C01743',
+                'stopName' => 'RER B',
+                'lineCode' => 'RER B',
+                'transportType' => 'RER',
+                'kind' => 'RESEAU',
+            ])
+        );
+
+        $this->assertResponseStatusCodeSame(400);
+    }
+
     public function testReorderFavoriteRejectsOutOfRangeSortOrder(): void
     {
         ['token' => $token] = $this->authenticate();

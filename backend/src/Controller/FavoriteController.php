@@ -52,6 +52,8 @@ class FavoriteController extends AbstractController
         $stopName = $data['stopName'] ?? '';
         $lineCode = $data['lineCode'] ?? '';
         $transportType = $data['transportType'] ?? 'BUS';
+        // Sans kind, un favori reste un arrêt : c'est ce qu'envoyaient les clients d'avant.
+        $kind = strtoupper((string) ($data['kind'] ?? 'STOP'));
 
         // Un champ non scalaire (ex. {"stopId": ["x"]}) ferait planter les setters typés
         // (string) ci-dessous avec une TypeError non interceptée → 500 au lieu d'un 400 propre.
@@ -62,7 +64,11 @@ class FavoriteController extends AbstractController
         // Check duplicate
         $existing = $this->favoriteRepo->findOneByUserAndStop($user, $stopId);
         if ($existing) {
-            return $this->json(['error' => 'Cet arrêt est déjà dans vos favoris.'], Response::HTTP_CONFLICT);
+            return $this->json([
+                'error' => 'LINE' === $kind
+                    ? 'Cette ligne est déjà dans vos favoris.'
+                    : 'Cet arrêt est déjà dans vos favoris.',
+            ], Response::HTTP_CONFLICT);
         }
 
         $maxOrder = $this->favoriteRepo->getMaxSortOrderForUser($user);
@@ -73,6 +79,7 @@ class FavoriteController extends AbstractController
                  ->setStopName($stopName)
                  ->setLineCode($lineCode)
                  ->setTransportType(strtoupper($transportType))
+                 ->setKind($kind)
                  ->setSortOrder($maxOrder + 1);
 
         $errors = $this->validator->validate($favorite);
