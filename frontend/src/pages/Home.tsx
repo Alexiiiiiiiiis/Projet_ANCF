@@ -1,55 +1,33 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { SearchBar } from '../components/stops/SearchBar'
 import { StopCard } from '../components/stops/StopCard'
 import { ScheduleRow } from '../components/schedules/ScheduleRow'
 import { Spinner } from '../components/ui/Spinner'
 import { useSchedules } from '../hooks/useSchedules'
 import { useGeolocation } from '../hooks/useGeolocation'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useFavorites } from '../hooks/useFavorites'
+import { useQuery } from '@tanstack/react-query'
 import { transportService } from '../services/transportService'
+import { POPULAR_STOPS } from '../data/popularStops'
+import { stopScheduleUrl } from '../utils/stopParams'
 import { useAuth } from '../context/AuthContext'
 import type { FavoriteStop, Stop, TransportType } from '../types/transport'
 import { TRANSPORT_COLORS, TRANSPORT_LABELS } from '../types/transport'
-
-// Grands pôles d'échange franciliens (IDs réels IDFM) affichés quand
-// l'utilisateur n'a ni recherché ni activé la géolocalisation
-const POPULAR_STOPS: Stop[] = [
-  { id: 'stop_area:IDFM:71264', name: 'Châtelet', lat: 48.8583, lon: 2.3485, transportType: 'METRO', lines: ['M1', 'M4', 'M7', 'M11', 'M14'] },
-  { id: 'stop_area:IDFM:474151', name: 'Châtelet - Les Halles', lat: 48.8617, lon: 2.347, transportType: 'RER', lines: ['RER A', 'RER B', 'RER D'] },
-  { id: 'stop_area:IDFM:71410', name: 'Gare du Nord', lat: 48.8809, lon: 2.3553, transportType: 'METRO', lines: ['M4', 'M5'] },
-  { id: 'stop_area:IDFM:73626', name: 'Gare de Lyon', lat: 48.8445, lon: 2.3735, transportType: 'METRO', lines: ['M1', 'M14'] },
-  { id: 'stop_area:IDFM:71517', name: 'La Défense', lat: 48.8921, lon: 2.2391, transportType: 'METRO', lines: ['M1'] },
-  { id: 'stop_area:IDFM:71370', name: 'Gare Saint-Lazare', lat: 48.875, lon: 2.325, transportType: 'METRO', lines: ['M3', 'M12', 'M13', 'M14'] },
-  { id: 'stop_area:IDFM:71045', name: 'Porte de Versailles', lat: 48.8324, lon: 2.2879, transportType: 'TRAM', lines: ['T2', 'T3a', 'M12'] },
-  { id: 'stop_area:IDFM:71673', name: 'Nation', lat: 48.8488, lon: 2.3963, transportType: 'METRO', lines: ['M1', 'M2', 'M6', 'M9'] },
-
-  // RER — une entrée par ligne (A/B/D déjà couvertes par Châtelet - Les Halles ci-dessus)
-  { id: 'stop_area:IDFM:rer_defense', name: 'La Défense', lat: 48.8921, lon: 2.2391, transportType: 'RER', lines: ['RER A'] },
-  { id: 'stop_area:IDFM:rer_denfert', name: 'Denfert-Rochereau', lat: 48.8339, lon: 2.3327, transportType: 'RER', lines: ['RER B'] },
-  { id: 'stop_area:IDFM:rer_invalides', name: 'Invalides', lat: 48.8615, lon: 2.314, transportType: 'RER', lines: ['RER C'] },
-  { id: 'stop_area:IDFM:rer_lyon_d', name: 'Gare de Lyon', lat: 48.8443, lon: 2.373, transportType: 'RER', lines: ['RER D'] },
-  { id: 'stop_area:IDFM:rer_magenta', name: 'Magenta', lat: 48.8768, lon: 2.3565, transportType: 'RER', lines: ['RER E'] },
-
-  // Tram — quelques lignes supplémentaires (T2/T3a déjà couvertes par Porte de Versailles ci-dessus)
-  { id: 'stop_area:IDFM:tram_saint_denis', name: 'Marché de Saint-Denis', lat: 48.9356, lon: 2.3573, transportType: 'TRAM', lines: ['T1'] },
-  { id: 'stop_area:IDFM:tram_bondy', name: 'Bondy', lat: 48.9019, lon: 2.4795, transportType: 'TRAM', lines: ['T4'] },
-  { id: 'stop_area:IDFM:tram_athis_mons', name: 'Athis-Mons', lat: 48.7113, lon: 2.3893, transportType: 'TRAM', lines: ['T7'] },
-]
 
 const TYPE_FILTERS: TransportType[] = ['METRO', 'RER', 'TRAM', 'BUS']
 
 export function Home() {
   const { user } = useAuth()
-  const queryClient = useQueryClient()
+  const { stops: favoriteStops, isFavorite, toggle, error: favoriteError, clearError } = useFavorites()
   const { lat, lon, error: geoError } = useGeolocation()
   const [selectedStop, setSelectedStop] = useState<Stop | null>(null)
   const [typeFilter, setTypeFilter] = useState<TransportType | null>(null)
   const [presetQuery, setPresetQuery] = useState('')
-  const [favoriteError, setFavoriteError] = useState<string | null>(null)
 
   const { data: schedules, isLoading: schedulesLoading, dataUpdatedAt } = useSchedules(
     selectedStop?.id ?? null,
-    typeFilter ?? undefined
+    { type: typeFilter ?? undefined }
   )
 
   // Le GPS renvoie une position légèrement différente à chaque mise à jour (watchPosition) :
@@ -64,12 +42,6 @@ export function Home() {
     staleTime: 120_000,
   })
 
-  const { data: favorites = [] } = useQuery({
-    queryKey: ['favorites'],
-    queryFn: transportService.getFavorites,
-    enabled: !!user,
-  })
-
   // F5.4 — dernières recherches de l'utilisateur
   const { data: recentSearches = [] } = useQuery({
     queryKey: ['search-history'],
@@ -78,42 +50,13 @@ export function Home() {
     staleTime: 60_000,
   })
 
-  const addFavMutation = useMutation({
-    mutationFn: (stop: Stop) =>
-      transportService.addFavorite({
-        stopId: stop.id,
-        stopName: stop.name,
-        lineCode: stop.lines?.[0] ?? '',
-        transportType: stop.transportType,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['favorites'] })
-      setFavoriteError(null)
-    },
-    onError: () => setFavoriteError('Impossible d\'ajouter ce favori. Réessayez.'),
-  })
-
-  const removeFavMutation = useMutation({
-    mutationFn: (id: number) => transportService.removeFavorite(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['favorites'] })
-      setFavoriteError(null)
-    },
-    onError: () => setFavoriteError('Impossible de retirer ce favori. Réessayez.'),
-  })
-
-  const isFav = (stopId: string) => favorites.some((f) => f.stopId === stopId)
-  const getFavId = (stopId: string) => favorites.find((f) => f.stopId === stopId)?.id
-
-  const toggleFavorite = (stop: Stop) => {
-    if (!user) return
-    const favId = getFavId(stop.id)
-    if (favId) {
-      removeFavMutation.mutate(favId)
-    } else {
-      addFavMutation.mutate(stop)
-    }
-  }
+  const toggleFavorite = (stop: Stop) =>
+    toggle({
+      stopId: stop.id,
+      stopName: stop.name,
+      lineCode: stop.lines?.[0] ?? '',
+      transportType: stop.transportType,
+    })
 
   const byType = (stops: Stop[]) =>
     typeFilter ? stops.filter((s) => s.transportType === typeFilter) : stops
@@ -130,14 +73,16 @@ export function Home() {
 
   const filteredNearby = byType(nearbyStops)
   const filteredPopular = byType(POPULAR_STOPS)
-  const filteredFavorites = byType(favorites.map(favoriteAsStop))
+  // Seuls les arrets deviennent des cartes ici : une ligne favorite n'a pas de prochains
+  // passages, elle se consulte depuis la page Horaires.
+  const filteredFavorites = byType(favoriteStops.map(favoriteAsStop))
 
   const renderStopCard = (stop: Stop) => (
     <StopCard
       key={stop.id}
       stop={stop}
       onClick={() => setSelectedStop(stop)}
-      isFavorite={isFav(stop.id)}
+      isFavorite={isFavorite(stop.id)}
       onToggleFavorite={user ? () => toggleFavorite(stop) : undefined}
       distance={stop.distanceLabel}
     />
@@ -155,7 +100,7 @@ export function Home() {
       {favoriteError && (
         <div className="flex items-center justify-between rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
           <span>{favoriteError}</span>
-          <button onClick={() => setFavoriteError(null)} className="ml-3 text-red-400 hover:text-red-600" aria-label="Fermer">✕</button>
+          <button onClick={() => clearError()} className="ml-3 text-red-400 hover:text-red-600" aria-label="Fermer">✕</button>
         </div>
       )}
 
@@ -223,11 +168,20 @@ export function Home() {
               </button>
               <h2 className="font-semibold text-gray-800">{selectedStop.name}</h2>
             </div>
-            {dataUpdatedAt > 0 && (
-              <span className="text-xs text-gray-400">
-                Mis à jour {new Date(dataUpdatedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              {dataUpdatedAt > 0 && (
+                <span className="text-xs text-gray-400">
+                  Mis à jour {new Date(dataUpdatedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </span>
+              )}
+              {/* L'accueil s'en tient aux huit prochains passages : la page Horaires les donne tous. */}
+              <Link
+                to={stopScheduleUrl(selectedStop)}
+                className="shrink-0 text-sm font-medium text-blue-700 hover:underline"
+              >
+                Tous les horaires
+              </Link>
+            </div>
           </div>
           {schedulesLoading ? (
             <div className="flex justify-center py-8">
