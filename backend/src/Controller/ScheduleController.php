@@ -16,13 +16,20 @@ class ScheduleController extends AbstractController
     ) {
     }
 
+    /** Modes acceptés par ?type= ; toute autre valeur est ignorée plutôt que rejetée. */
+    private const TYPES = ['METRO', 'RER', 'TRAM', 'BUS'];
+
     #[Route('/{stopId}', name: 'schedules_departures', methods: ['GET'])]
     public function departures(string $stopId, Request $request): JsonResponse
     {
-        $departures = $this->idfmApi->getNextDepartures($stopId);
+        $type = strtoupper(trim($request->query->getString('type', '')));
+        $type = \in_array($type, self::TYPES, true) ? $type : null;
+
+        $departures = $this->idfmApi->getNextDepartures($stopId, $type);
 
         return $this->json([
             'stopId' => $stopId,
+            'type' => $type,
             'fetchedAt' => date('c'),
             'refreshInterval' => 30,
             'departures' => $departures,

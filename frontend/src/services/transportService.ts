@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { Stop, Departure, TrafficAlert, FavoriteStop, Journey } from '../types/transport'
+import type { Stop, Departure, TrafficAlert, FavoriteStop, Journey, TransportType } from '../types/transport'
 
 export interface StopSearchParams {
   q: string
@@ -53,8 +53,10 @@ export const transportService = {
     return data
   },
 
-  async getDepartures(stopId: string): Promise<ScheduleResponse> {
-    const { data } = await api.get<ScheduleResponse>(`/schedules/${stopId}`)
+  async getDepartures(stopId: string, type?: TransportType): Promise<ScheduleResponse> {
+    const { data } = await api.get<ScheduleResponse>(`/schedules/${stopId}`, {
+      params: type ? { type } : undefined,
+    })
     return data
   },
 

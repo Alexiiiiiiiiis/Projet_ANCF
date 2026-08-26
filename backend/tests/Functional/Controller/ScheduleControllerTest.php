@@ -27,6 +27,29 @@ class ScheduleControllerTest extends WebTestCase
         $this->assertSame(30, $data['refreshInterval']);
     }
 
+    public function testDeparturesAcceptsTypeFilter(): void
+    {
+        $this->client->request('GET', '/api/schedules/stop:M14:chatelet?type=metro');
+        $this->assertResponseIsSuccessful();
+
+        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $this->assertSame('METRO', $data['type']);
+        foreach ($data['departures'] as $departure) {
+            $this->assertSame('METRO', $departure['transportType']);
+        }
+    }
+
+    public function testDeparturesIgnoresUnknownTypeFilter(): void
+    {
+        // Un mode inconnu ne doit pas vider la liste ni renvoyer une erreur : on l'ignore.
+        $this->client->request('GET', '/api/schedules/stop:M14:chatelet?type=trottinette');
+        $this->assertResponseIsSuccessful();
+
+        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $this->assertNull($data['type']);
+        $this->assertNotEmpty($data['departures']);
+    }
+
     public function testDeparturesContainsDepartureFields(): void
     {
         $this->client->request('GET', '/api/schedules/stop:RERA:gare_nord');

@@ -403,6 +403,7 @@ class IdfmApiServiceTest extends TestCase
             'lines' => [
                 ['id' => 'line:IDFM:C01107', 'code' => '72', 'commercial_mode' => ['name' => 'Bus']],
                 ['id' => 'line:IDFM:C01374', 'code' => '4', 'commercial_mode' => ['name' => 'Métro']],
+                ['id' => 'line:IDFM:C01742', 'code' => 'A', 'commercial_mode' => ['name' => 'RER']],
             ],
         ]);
 
@@ -480,6 +481,40 @@ class IdfmApiServiceTest extends TestCase
         $this->assertTrue($results[0]['isRealtime']);
         $this->assertGreaterThanOrEqual(5, $results[0]['waitMinutes']);
         $this->assertLessThanOrEqual(6, $results[0]['waitMinutes']);
+    }
+
+    public function testGetDeparturesFiltersByTransportTypeBeforeTruncating(): void
+    {
+        // Six bus partent avant les deux RER : si la coupe a cinq passait avant le filtre,
+        // demander le RER ne renverrait rien alors que des trains partent bien de cet arret.
+        $visites = [];
+        foreach ([1, 2, 3, 4, 5, 6] as $minutes) {
+            $visites[] = $this->visiteSiri('C01107', 'Rhin Et Danube', (new \DateTimeImmutable("+{$minutes} minutes"))->format(DATE_ATOM));
+        }
+        $visites[] = $this->visiteSiri('C01742', 'Boissy-Saint-Léger', (new \DateTimeImmutable('+8 minutes'))->format(DATE_ATOM));
+        $visites[] = $this->visiteSiri('C01742', 'Saint-Germain-en-Laye', (new \DateTimeImmutable('+9 minutes'))->format(DATE_ATOM));
+
+        $this->httpClient->method('request')->willReturnCallback($this->reponsesSiri($visites));
+        $service = $this->createService('test-api-key');
+
+        $tous = $service->getNextDepartures('stop_area:IDFM:71517');
+        $this->assertCount(5, $tous);
+        $this->assertSame(['BUS'], array_unique(array_column($tous, 'transportType')));
+
+        $rer = $service->getNextDepartures('stop_area:IDFM:71517', 'RER');
+        $this->assertCount(2, $rer);
+        $this->assertSame(['RER'], array_unique(array_column($rer, 'transportType')));
+        $this->assertSame('Boissy-Saint-Léger', $rer[0]['direction']);
+    }
+
+    public function testGetDeparturesWithoutMatchingTypeReturnsNothing(): void
+    {
+        $this->httpClient->method('request')->willReturnCallback($this->reponsesSiri([
+            $this->visiteSiri('C01107', 'Rhin Et Danube', (new \DateTimeImmutable('+3 minutes'))->format(DATE_ATOM)),
+        ]));
+
+        // Aucun tram a cet arret : la liste doit etre vide, pas retomber sur les autres modes.
+        $this->assertSame([], $this->createService('test-api-key')->getNextDepartures('stop_area:IDFM:71249', 'TRAM'));
     }
 
     public function testGetDeparturesMarksAimedTimesAsNotRealtime(): void

@@ -47,7 +47,10 @@ export function Home() {
   const [presetQuery, setPresetQuery] = useState('')
   const [favoriteError, setFavoriteError] = useState<string | null>(null)
 
-  const { data: schedules, isLoading: schedulesLoading, dataUpdatedAt } = useSchedules(selectedStop?.id ?? null)
+  const { data: schedules, isLoading: schedulesLoading, dataUpdatedAt } = useSchedules(
+    selectedStop?.id ?? null,
+    typeFilter ?? undefined
+  )
 
   // Le GPS renvoie une position légèrement différente à chaque mise à jour (watchPosition) :
   // arrondir à ~111m près évite de relancer une requête réseau à chaque micro-mouvement.
@@ -237,7 +240,11 @@ export function Home() {
               ))}
             </div>
           ) : (
-            <p className="py-4 text-center text-sm text-gray-400">Aucun départ disponible</p>
+            <p className="py-4 text-center text-sm text-gray-400">
+              {typeFilter
+                ? `Aucun départ ${TRANSPORT_LABELS[typeFilter]} depuis cet arrêt`
+                : 'Aucun départ disponible'}
+            </p>
           )}
         </section>
       )}

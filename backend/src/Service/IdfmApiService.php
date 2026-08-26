@@ -9,6 +9,8 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
 class IdfmApiService
 {
     private const DEPARTURES_TTL = 30;   // seconds
+    private const DEPARTURES_DISPLAYED = 5;  // départs renvoyés par l'API
+    private const DEPARTURES_KEPT = 40;      // profondeur gardée en cache, pour servir les filtres
     private const STOP_LINES_TTL = 86400; // 24 h — le code public d'une ligne ne bouge pas dans la journée
     private const STOPS_TTL = 300;       // 5 minutes
     private const JOURNEYS_TTL = 300;    // 5 minutes — mutualise le quota entre utilisateurs cherchant le même trajet
@@ -304,27 +306,53 @@ class IdfmApiService
 
     // ─── Departures ────────────────────────────────────────────────────────
 
-    public function getNextDepartures(string $stopId): array
+    /**
+     * @param string|null $type METRO, RER, TRAM ou BUS pour ne garder que ce mode
+     */
+    public function getNextDepartures(string $stopId, ?string $type = null): array
     {
         $cacheKey = 'departures_'.md5($stopId);
         $cacheItem = $this->cache->getItem($cacheKey);
 
         if ($cacheItem->isHit()) {
-            return $cacheItem->get();
-        }
-
-        if (empty($this->apiKey)) {
-            $data = $this->getMockDepartures($stopId);
+            $data = $cacheItem->get();
         } else {
-            // SIRI en premier : c'est la seule source qui donne l'heure réellement attendue pour le
-            // métro et le bus. Navitia reste le filet de sécurité, avec ses horaires théoriques.
-            $data = $this->fetchDeparturesFromSiri($stopId) ?: $this->fetchDeparturesFromApi($stopId);
+            if (empty($this->apiKey)) {
+                $data = $this->getMockDepartures($stopId);
+            } else {
+                // SIRI en premier : c'est la seule source qui donne l'heure réellement attendue pour
+                // le métro et le bus. Navitia reste le filet de sécurité, avec ses horaires théoriques.
+                $data = $this->fetchDeparturesFromSiri($stopId) ?: $this->fetchDeparturesFromApi($stopId);
+            }
+
+            $cacheItem->set($data)->expiresAfter(self::DEPARTURES_TTL);
+            $this->cache->save($cacheItem);
         }
 
-        $cacheItem->set($data)->expiresAfter(self::DEPARTURES_TTL);
-        $this->cache->save($cacheItem);
+        return $this->filterDepartures($data, $type);
+    }
 
-        return $data;
+    /**
+     * Le cache retient la liste complète et le filtrage se fait à la lecture : les quatre modes
+     * sont ainsi servis par un seul appel à IDFM, au lieu d'un appel par filtre. Le découpage
+     * n'intervient qu'ensuite, sinon filtrer sur le RER dans un pôle à dominante bus ne
+     * renverrait rien alors que des trains partent bien de cet arrêt.
+     *
+     * @param array<int, array<string, mixed>> $departures
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function filterDepartures(array $departures, ?string $type): array
+    {
+        if (null !== $type && '' !== $type) {
+            $type = strtoupper($type);
+            $departures = array_values(array_filter(
+                $departures,
+                static fn (array $departure): bool => ($departure['transportType'] ?? '') === $type
+            ));
+        }
+
+        return \array_slice($departures, 0, self::DEPARTURES_DISPLAYED);
     }
 
     /**
@@ -437,7 +465,7 @@ class IdfmApiService
 
                 return $departure;
             },
-            \array_slice($departures, 0, 5)
+            \array_slice($departures, 0, self::DEPARTURES_KEPT)
         );
     }
 
@@ -493,7 +521,8 @@ class IdfmApiService
             $response = $this->httpClient->request('GET', $this->apiBaseUrl."/stop_areas/{$stopId}/departures", [
                 'headers' => ['apikey' => $this->apiKey],
                 'query' => [
-                    'count' => 10,
+                    // Large : ces départs alimentent aussi le filtrage par mode.
+                    'count' => 30,
                     'data_freshness' => 'realtime',
                 ],
                 'timeout' => 5,
@@ -895,7 +924,7 @@ class IdfmApiService
             ];
         }
 
-        return array_slice($departures, 0, 5);
+        return \array_slice($departures, 0, self::DEPARTURES_KEPT);
     }
 
     private function normalizeAlertsResponse(array $data): array
@@ -1214,6 +1243,9 @@ class IdfmApiService
                 ];
             }
         }
+
+        // Trie comme les vraies sources : sans cela le repli listerait ligne par ligne.
+        usort($departures, static fn (array $a, array $b): int => $a['waitMinutes'] <=> $b['waitMinutes']);
 
         return $departures;
     }
