@@ -37,6 +37,7 @@ class IdfmApiServiceTest extends TestCase
             $this->httpClient,
             $this->cache,
             $apiKey,
+            'https://prim.iledefrance-mobilites.fr/marketplace/v2/navitia',
             'https://prim.iledefrance-mobilites.fr/marketplace',
             new GeoService(),
         );
@@ -151,7 +152,8 @@ class IdfmApiServiceTest extends TestCase
         $this->assertArrayHasKey('direction', $departure);
         $this->assertArrayHasKey('waitMinutes', $departure);
         $this->assertArrayHasKey('isRealtime', $departure);
-        $this->assertTrue($departure['isRealtime']);
+        // Donnees fabriquees : elles ne doivent jamais se presenter comme du temps reel.
+        $this->assertFalse($departure['isRealtime']);
     }
 
     public function testGetNextDeparturesUnknownStopReturnsFallback(): void
@@ -266,7 +268,7 @@ class IdfmApiServiceTest extends TestCase
         $cache = $this->createMock(CacheItemPoolInterface::class);
         $cache->method('getItem')->willReturn($cacheItem);
 
-        $service = new IdfmApiService($this->httpClient, $cache, '', 'https://api.test', new GeoService());
+        $service = new IdfmApiService($this->httpClient, $cache, '', 'https://api.test', 'https://siri.test', new GeoService());
 
         $results = $service->searchStops('test');
         $this->assertSame($cachedData, $results);
@@ -283,7 +285,7 @@ class IdfmApiServiceTest extends TestCase
         $cache = $this->createMock(CacheItemPoolInterface::class);
         $cache->method('getItem')->willReturn($cacheItem);
 
-        $service = new IdfmApiService($this->httpClient, $cache, '', 'https://api.test', new GeoService());
+        $service = new IdfmApiService($this->httpClient, $cache, '', 'https://api.test', 'https://siri.test', new GeoService());
 
         $results = $service->getTrafficAlerts();
         $this->assertSame($cachedAlerts, $results);
@@ -342,7 +344,7 @@ class IdfmApiServiceTest extends TestCase
         $this->assertNotEmpty($results);
     }
 
-    public function testGetDeparturesCallsApiWhenKeyProvided(): void
+    public function testGetDeparturesFallsBackToNavitiaWhenSiriIsEmpty(): void
     {
         $inFiveMinutes = (new \DateTimeImmutable('+5 minutes', new \DateTimeZone('Europe/Paris')))
             ->format('Ymd\THis');
@@ -365,10 +367,12 @@ class IdfmApiServiceTest extends TestCase
             ],
         ]);
 
-        $this->httpClient->expects($this->once())
-            ->method('request')
-            ->with('GET', $this->stringContains('/departures'))
-            ->willReturn($apiResponse);
+        $siriResponse = $this->createMock(ResponseInterface::class);
+        $siriResponse->method('toArray')->willReturn([]); // SIRI muet : aucun passage suivi
+
+        $this->httpClient->method('request')->willReturnCallback(
+            fn (string $method, string $url) => str_contains($url, 'stop-monitoring') ? $siriResponse : $apiResponse
+        );
 
         $service = $this->createService('test-api-key');
         $results = $service->getNextDepartures('stop_area:IDFM:71264');
@@ -381,6 +385,111 @@ class IdfmApiServiceTest extends TestCase
         $this->assertTrue($results[0]['isRealtime']);
         $this->assertGreaterThanOrEqual(4, $results[0]['waitMinutes']);
         $this->assertLessThanOrEqual(5, $results[0]['waitMinutes']);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $visites
+     */
+    private function reponsesSiri(array $visites): callable
+    {
+        $siri = $this->createMock(ResponseInterface::class);
+        $siri->method('toArray')->willReturn([
+            'Siri' => ['ServiceDelivery' => ['StopMonitoringDelivery' => [['MonitoredStopVisit' => $visites]]]],
+        ]);
+
+        // Navitia ne sert plus qu'a traduire STIF:Line::C01107: en "72".
+        $lignes = $this->createMock(ResponseInterface::class);
+        $lignes->method('toArray')->willReturn([
+            'lines' => [
+                ['id' => 'line:IDFM:C01107', 'code' => '72', 'commercial_mode' => ['name' => 'Bus']],
+                ['id' => 'line:IDFM:C01374', 'code' => '4', 'commercial_mode' => ['name' => 'Métro']],
+            ],
+        ]);
+
+        return fn (string $method, string $url) => str_contains($url, 'stop-monitoring') ? $siri : $lignes;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function visiteSiri(string $ligne, string $destination, string $heure, bool $tempsReel = true): array
+    {
+        $call = ['DestinationDisplay' => [['value' => $destination]]];
+        $call[$tempsReel ? 'ExpectedDepartureTime' : 'AimedDepartureTime'] = $heure;
+
+        return ['MonitoredVehicleJourney' => [
+            'LineRef' => ['value' => 'STIF:Line::'.$ligne.':'],
+            'MonitoredCall' => $call,
+        ]];
+    }
+
+    public function testGetDeparturesUsesSiriRealtimeTimes(): void
+    {
+        $dansSixMinutes = (new \DateTimeImmutable('+6 minutes'))->format(DATE_ATOM);
+
+        $this->httpClient->method('request')->willReturnCallback($this->reponsesSiri([
+            $this->visiteSiri('C01107', 'Parc de Saint-Cloud (Saint-Cloud)', $dansSixMinutes),
+        ]));
+
+        $results = $this->createService('test-api-key')->getNextDepartures('stop_area:IDFM:71249');
+
+        $this->assertCount(1, $results);
+        $this->assertSame('72', $results[0]['lineCode']);
+        $this->assertSame('BUS', $results[0]['transportType']);
+        $this->assertSame('Parc de Saint-Cloud', $results[0]['direction']);
+        $this->assertTrue($results[0]['isRealtime']);
+        $this->assertGreaterThanOrEqual(5, $results[0]['waitMinutes']);
+        $this->assertLessThanOrEqual(6, $results[0]['waitMinutes']);
+    }
+
+    public function testGetDeparturesMarksAimedTimesAsNotRealtime(): void
+    {
+        $dansDixMinutes = (new \DateTimeImmutable('+10 minutes'))->format(DATE_ATOM);
+
+        $this->httpClient->method('request')->willReturnCallback($this->reponsesSiri([
+            $this->visiteSiri('C01374', 'Porte de Clignancourt', $dansDixMinutes, false),
+        ]));
+
+        $results = $this->createService('test-api-key')->getNextDepartures('stop_area:IDFM:71264');
+
+        $this->assertSame('M4', $results[0]['lineCode']);
+        $this->assertSame('METRO', $results[0]['transportType']);
+        // Horaire theorique faute de vehicule suivi : l'app ne doit pas parler de temps reel.
+        $this->assertFalse($results[0]['isRealtime']);
+    }
+
+    public function testGetDeparturesSortsSiriVisitsByTimeAndDropsPastOnes(): void
+    {
+        $passe = (new \DateTimeImmutable('-5 minutes'))->format(DATE_ATOM);
+        $tot = (new \DateTimeImmutable('+2 minutes'))->format(DATE_ATOM);
+        $tard = (new \DateTimeImmutable('+12 minutes'))->format(DATE_ATOM);
+
+        // SIRI livre ses visites groupees par ligne : le tri chronologique est a notre charge.
+        $this->httpClient->method('request')->willReturnCallback($this->reponsesSiri([
+            $this->visiteSiri('C01374', 'Bagneux', $tard),
+            $this->visiteSiri('C01107', 'Hôtel de Ville', $passe),
+            $this->visiteSiri('C01107', 'Parc de Saint-Cloud', $tot),
+        ]));
+
+        $results = $this->createService('test-api-key')->getNextDepartures('stop_area:IDFM:71264');
+
+        $this->assertCount(2, $results, 'le passage deja effectue doit disparaitre');
+        $this->assertSame('72', $results[0]['lineCode']);
+        $this->assertSame('M4', $results[1]['lineCode']);
+    }
+
+    public function testGetDeparturesIgnoresUnidentifiableLines(): void
+    {
+        $dansCinqMinutes = (new \DateTimeImmutable('+5 minutes'))->format(DATE_ATOM);
+
+        $this->httpClient->method('request')->willReturnCallback($this->reponsesSiri([
+            $this->visiteSiri('C09999', 'Terminus inconnu', $dansCinqMinutes),
+        ]));
+
+        $results = $this->createService('test-api-key')->getNextDepartures('stop_area:IDFM:71264');
+
+        // Ligne absente du referentiel : mieux vaut ne rien afficher qu'un code invente.
+        $this->assertSame([], $results);
     }
 
     public function testGetAlertsCallsApiWhenKeyProvided(): void
@@ -587,7 +696,7 @@ class IdfmApiServiceTest extends TestCase
         $cache = $this->createMock(CacheItemPoolInterface::class);
         $cache->method('getItem')->willReturn($cacheItem);
 
-        $service = new IdfmApiService($this->httpClient, $cache, '', 'https://api.test', new GeoService());
+        $service = new IdfmApiService($this->httpClient, $cache, '', 'https://api.test', 'https://siri.test', new GeoService());
 
         $results = $service->searchJourneys('A', 'B');
         $this->assertSame($cachedJourneys, $results);
@@ -664,8 +773,40 @@ class IdfmApiServiceTest extends TestCase
 
     public function testGetApiQuotaStatusReturnsNullWhenNeverRecorded(): void
     {
-        $service = new IdfmApiService($this->httpClient, new ArrayAdapter(), '', 'https://api.test', new GeoService());
+        $service = new IdfmApiService($this->httpClient, new ArrayAdapter(), '', 'https://api.test', 'https://siri.test', new GeoService());
         $this->assertNull($service->getApiQuotaStatus());
+    }
+
+    public function testApiQuotaStatusReportsTheMostConsumedApi(): void
+    {
+        // PRIM decompte SIRI et Navitia separement : c'est le compteur le plus bas qui dira
+        // quand l'app basculera en mode degrade, c'est donc celui-la qu'il faut afficher.
+        $siri = $this->createMock(ResponseInterface::class);
+        $siri->method('getHeaders')->willReturn([
+            'x-ratelimit-remaining-day' => ['988'],
+            'x-ratelimit-limit-day' => ['1000'],
+        ]);
+        $siri->method('toArray')->willReturn([]);
+
+        $navitia = $this->createMock(ResponseInterface::class);
+        $navitia->method('getHeaders')->willReturn([
+            'x-ratelimit-remaining-day' => ['312'],
+            'x-ratelimit-limit-day' => ['1000'],
+        ]);
+        $navitia->method('toArray')->willReturn(['places' => []]);
+
+        $this->httpClient->method('request')->willReturnCallback(
+            fn (string $method, string $url) => str_contains($url, 'stop-monitoring') ? $siri : $navitia
+        );
+
+        $service = new IdfmApiService($this->httpClient, new ArrayAdapter(), 'test-api-key', 'https://api.test', 'https://siri.test', new GeoService());
+        $service->getNextDepartures('stop_area:IDFM:71264');
+        $service->searchStops('Châtelet');
+
+        $status = $service->getApiQuotaStatus();
+        $this->assertNotNull($status);
+        $this->assertSame(312, $status['remaining']);
+        $this->assertSame('navitia', $status['source']);
     }
 
     public function testRecordApiQuotaCapturesRateLimitHeaders(): void
@@ -679,7 +820,7 @@ class IdfmApiServiceTest extends TestCase
 
         $this->httpClient->method('request')->willReturn($apiResponse);
 
-        $service = new IdfmApiService($this->httpClient, new ArrayAdapter(), 'test-api-key', 'https://api.test', new GeoService());
+        $service = new IdfmApiService($this->httpClient, new ArrayAdapter(), 'test-api-key', 'https://api.test', 'https://siri.test', new GeoService());
         $service->searchStops('Châtelet');
 
         $status = $service->getApiQuotaStatus();

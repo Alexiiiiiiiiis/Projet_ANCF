@@ -9,6 +9,7 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
 class IdfmApiService
 {
     private const DEPARTURES_TTL = 30;   // seconds
+    private const STOP_LINES_TTL = 86400; // 24 h — le code public d'une ligne ne bouge pas dans la journée
     private const STOPS_TTL = 300;       // 5 minutes
     private const JOURNEYS_TTL = 300;    // 5 minutes — mutualise le quota entre utilisateurs cherchant le même trajet
     // La clé PRIM a un quota strict de 1000 requêtes/jour partagé avec le reste de l'app (recherche
@@ -57,13 +58,18 @@ class IdfmApiService
         'ý' => 'y', 'ÿ' => 'y', 'ñ' => 'n', 'œ' => 'oe', 'æ' => 'ae',
     ];
 
-    private const QUOTA_CACHE_KEY = 'idfm_quota_status';
+    /** Prefixe : SIRI et Navitia ont chacun leur compteur de 1000 requetes/jour chez PRIM. */
+    private const QUOTA_CACHE_PREFIX = 'idfm_quota_status_';
+
+    /** @var array<int, string> APIs dont le quota est suivi, cf. getApiQuotaStatus(). */
+    private const QUOTA_SOURCES = ['navitia', 'siri'];
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly CacheItemPoolInterface $cache,
         private readonly string $apiKey,
         private readonly string $apiBaseUrl,
+        private readonly string $siriBaseUrl,
         private readonly GeoService $geoService,
     ) {
     }
@@ -74,8 +80,11 @@ class IdfmApiService
      * La clé PRIM a un quota strict de 1000 requêtes/jour (cf. en-têtes x-ratelimit-*) : on le
      * capture à chaque appel réel pour que l'admin voie venir l'épuisement avant qu'il ne force
      * l'app entière en mode dégradé (mock), plutôt que de le découvrir après coup dans les logs.
+     *
+     * Navitia et SIRI sont décomptés séparément par PRIM, avec les mêmes en-têtes : les mélanger
+     * dans une seule entrée ferait osciller le compteur affiché entre deux réalités différentes.
      */
-    private function recordApiQuota(ResponseInterface $response): void
+    private function recordApiQuota(ResponseInterface $response, string $source): void
     {
         try {
             $headers = $response->getHeaders(false);
@@ -86,8 +95,9 @@ class IdfmApiService
                 return;
             }
 
-            $item = $this->cache->getItem(self::QUOTA_CACHE_KEY);
+            $item = $this->cache->getItem(self::QUOTA_CACHE_PREFIX.$source);
             $item->set([
+                'source' => $source,
                 'remaining' => (int) $remaining,
                 'limit' => (int) $limit,
                 'checkedAt' => (new \DateTimeImmutable('now', new \DateTimeZone('Europe/Paris')))->format('c'),
@@ -98,12 +108,30 @@ class IdfmApiService
         }
     }
 
-    /** @return array{remaining: int, limit: int, checkedAt: string}|null */
+    /**
+     * Le quota le plus entamé des deux APIs : c'est celui qui basculera l'app en mode dégradé
+     * en premier, donc le seul chiffre utile à qui surveille le tableau de bord.
+     *
+     * @return array{source?: string, remaining: int, limit: int, checkedAt: string}|null
+     */
     public function getApiQuotaStatus(): ?array
     {
-        $item = $this->cache->getItem(self::QUOTA_CACHE_KEY);
+        $statuses = [];
 
-        return $item->isHit() ? $item->get() : null;
+        foreach (self::QUOTA_SOURCES as $source) {
+            $item = $this->cache->getItem(self::QUOTA_CACHE_PREFIX.$source);
+            if ($item->isHit()) {
+                $statuses[] = $item->get();
+            }
+        }
+
+        if ([] === $statuses) {
+            return null;
+        }
+
+        usort($statuses, static fn (array $a, array $b): int => $a['remaining'] <=> $b['remaining']);
+
+        return $statuses[0];
     }
 
     // ─── Stops Search ──────────────────────────────────────────────────────
@@ -154,7 +182,7 @@ class IdfmApiService
                 'query' => ['q' => $query, 'type[]' => 'line', 'count' => 1],
                 'timeout' => 5,
             ]);
-            $this->recordApiQuota($response);
+            $this->recordApiQuota($response, 'navitia');
 
             $line = $response->toArray()['pt_objects'][0]['line'] ?? null;
             if (null === $line) {
@@ -166,7 +194,7 @@ class IdfmApiService
                 'query' => ['count' => $limit],
                 'timeout' => 5,
             ]);
-            $this->recordApiQuota($response);
+            $this->recordApiQuota($response, 'navitia');
 
             // Les stop_areas d'une ligne n'incluent pas commercial_modes :
             // on type chaque arrêt avec le mode de la ligne trouvée
@@ -217,7 +245,7 @@ class IdfmApiService
                 ],
                 'timeout' => 5,
             ]);
-            $this->recordApiQuota($response);
+            $this->recordApiQuota($response, 'navitia');
 
             $data = $response->toArray();
 
@@ -261,7 +289,7 @@ class IdfmApiService
                 ],
                 'timeout' => 5,
             ]);
-            $this->recordApiQuota($response);
+            $this->recordApiQuota($response, 'navitia');
 
             $data = $response->toArray();
 
@@ -282,14 +310,178 @@ class IdfmApiService
             return $cacheItem->get();
         }
 
-        $data = empty($this->apiKey)
-            ? $this->getMockDepartures($stopId)
-            : $this->fetchDeparturesFromApi($stopId);
+        if (empty($this->apiKey)) {
+            $data = $this->getMockDepartures($stopId);
+        } else {
+            // SIRI en premier : c'est la seule source qui donne l'heure réellement attendue pour le
+            // métro et le bus. Navitia reste le filet de sécurité, avec ses horaires théoriques.
+            $data = $this->fetchDeparturesFromSiri($stopId) ?: $this->fetchDeparturesFromApi($stopId);
+        }
 
         $cacheItem->set($data)->expiresAfter(self::DEPARTURES_TTL);
         $this->cache->save($cacheItem);
 
         return $data;
+    }
+
+    /**
+     * Horaires temps réel via SIRI (stop-monitoring). Navitia, même interrogé avec
+     * data_freshness=realtime, ne renvoie que du base_schedule pour le métro et le bus : ses
+     * horaires sont théoriques. SIRI expose ExpectedDepartureTime, l'heure réellement attendue.
+     *
+     * Un seul appel couvre tout l'arrêt — toutes ses lignes et tous ses quais.
+     *
+     * @return array<int, array<string, mixed>> vide si SIRI est indisponible ou inexploitable,
+     *                                          le repli Navitia prenant alors le relais
+     */
+    private function fetchDeparturesFromSiri(string $stopId): array
+    {
+        // stop_area:IDFM:71264 -> STIF:StopArea:SP:71264:
+        if (1 !== preg_match('/^stop_area:IDFM:(\w+)$/', $stopId, $matches)) {
+            return [];
+        }
+
+        try {
+            $response = $this->httpClient->request('GET', $this->siriBaseUrl.'/stop-monitoring', [
+                'headers' => ['apikey' => $this->apiKey],
+                'query' => ['MonitoringRef' => 'STIF:StopArea:SP:'.$matches[1].':'],
+                'timeout' => 5,
+            ]);
+            $this->recordApiQuota($response, 'siri');
+
+            return $this->normalizeSiriDepartures($response->toArray(), $stopId);
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeSiriDepartures(array $data, string $stopId): array
+    {
+        $visits = $data['Siri']['ServiceDelivery']['StopMonitoringDelivery'][0]['MonitoredStopVisit'] ?? [];
+        if (!\is_array($visits) || [] === $visits) {
+            return [];
+        }
+
+        $labels = $this->getStopAreaLineLabels($stopId);
+        $now = time();
+        $departures = [];
+
+        foreach ($visits as $visit) {
+            $journey = $visit['MonitoredVehicleJourney'] ?? [];
+            $call = $journey['MonitoredCall'] ?? [];
+
+            // ExpectedDepartureTime = heure temps réel ; AimedDepartureTime = horaire théorique,
+            // seul disponible tant que le véhicule n'est pas suivi. La distinction est reportée
+            // telle quelle dans isRealtime : l'app ne doit jamais annoncer un temps réel qu'elle
+            // n'a pas.
+            $realtime = $call['ExpectedDepartureTime'] ?? $call['ExpectedArrivalTime'] ?? null;
+            $planned = $call['AimedDepartureTime'] ?? $call['AimedArrivalTime'] ?? null;
+            $time = $realtime ?? $planned;
+
+            if (!\is_string($time) || '' === $time) {
+                continue;
+            }
+
+            try {
+                $departureTime = new \DateTimeImmutable($time);
+            } catch (\Throwable) {
+                continue;
+            }
+
+            $waitMinutes = (int) floor(($departureTime->getTimestamp() - $now) / 60);
+            if ($waitMinutes < 0) {
+                continue; // passage déjà effectué
+            }
+
+            // "STIF:Line::C01107:" -> "C01107"
+            $lineRef = $journey['LineRef']['value'] ?? '';
+            $ref = \is_string($lineRef) ? trim($lineRef, ':') : '';
+            $ref = '' !== $ref ? substr($ref, (int) strrpos($ref, ':') + 1) : '';
+
+            $line = $labels[$ref] ?? self::STRUCTURING_LINES['line:IDFM:'.$ref] ?? null;
+            if (null === $line) {
+                continue; // ligne non identifiable : mieux vaut l'omettre qu'afficher un code faux
+            }
+
+            $direction = $call['DestinationDisplay'][0]['value']
+                ?? $journey['DestinationName'][0]['value']
+                ?? $journey['DirectionName'][0]['value']
+                ?? 'Terminus';
+
+            $departures[] = [
+                'lineCode' => $line[0],
+                'transportType' => $line[1],
+                'direction' => preg_replace('/ \([^)]*\)$/', '', $direction),
+                'waitMinutes' => $waitMinutes,
+                'isRealtime' => null !== $realtime,
+                'platform' => null,
+                '_ordre' => $departureTime->getTimestamp(),
+            ];
+        }
+
+        // SIRI regroupe ses visites par ligne, pas par heure : sans ce tri, les cinq départs
+        // affichés seraient ceux de la première ligne rencontrée, pas les cinq prochains.
+        usort($departures, static fn (array $a, array $b): int => $a['_ordre'] <=> $b['_ordre']);
+
+        return array_map(
+            static function (array $departure): array {
+                unset($departure['_ordre']);
+
+                return $departure;
+            },
+            \array_slice($departures, 0, 5)
+        );
+    }
+
+    /**
+     * SIRI ne transporte que l'identifiant technique d'une ligne (STIF:Line::C01107:) ; son code
+     * public ("72", "M4") et son mode viennent de Navitia. Un appel par arrêt, gardé 24 h : sans
+     * ce cache, chaque consultation d'horaires en coûterait un second au quota.
+     *
+     * @return array<string, array{0: string, 1: string}>
+     */
+    private function getStopAreaLineLabels(string $stopId): array
+    {
+        $cacheItem = $this->cache->getItem('stop_lines_'.md5($stopId));
+        if ($cacheItem->isHit()) {
+            return $cacheItem->get();
+        }
+
+        $labels = [];
+
+        try {
+            $response = $this->httpClient->request('GET', $this->apiBaseUrl."/stop_areas/{$stopId}/lines", [
+                'headers' => ['apikey' => $this->apiKey],
+                'query' => ['count' => 50],
+                'timeout' => 5,
+            ]);
+            $this->recordApiQuota($response, 'navitia');
+
+            foreach ($response->toArray()['lines'] ?? [] as $line) {
+                $id = $line['id'] ?? '';
+                $code = (string) ($line['code'] ?? '');
+                if (!\is_string($id) || '' === $id || '' === $code) {
+                    continue;
+                }
+                $mode = $line['commercial_mode']['name'] ?? 'bus';
+                $labels[substr($id, (int) strrpos($id, ':') + 1)] = [
+                    $this->formatLineLabel($mode, $code),
+                    $this->mapTransportType($mode),
+                ];
+            }
+        } catch (\Throwable) {
+            // Sans libellés, seules les lignes RER/Métro de STRUCTURING_LINES resteront affichables.
+        }
+
+        $cacheItem->set($labels)->expiresAfter(self::STOP_LINES_TTL);
+        $this->cache->save($cacheItem);
+
+        return $labels;
     }
 
     private function fetchDeparturesFromApi(string $stopId): array
@@ -303,7 +495,7 @@ class IdfmApiService
                 ],
                 'timeout' => 5,
             ]);
-            $this->recordApiQuota($response);
+            $this->recordApiQuota($response, 'navitia');
 
             $data = $response->toArray();
 
@@ -347,7 +539,7 @@ class IdfmApiService
                 ],
                 'timeout' => 8,
             ]);
-            $this->recordApiQuota($response);
+            $this->recordApiQuota($response, 'navitia');
 
             $data = $response->toArray();
             $journeys = $this->normalizeJourneysResponse($data);
@@ -563,7 +755,7 @@ class IdfmApiService
                     ],
                     'timeout' => 5,
                 ]);
-                $this->recordApiQuota($response);
+                $this->recordApiQuota($response, 'navitia');
 
                 $data = $response->toArray();
                 $pageDisruptions = $data['disruptions'] ?? [];
@@ -990,7 +1182,9 @@ class IdfmApiService
                     'transportType' => $line['type'],
                     'direction' => $line['direction'],
                     'waitMinutes' => $wait,
-                    'isRealtime' => true,
+                    // Jamais true : ces horaires sont fabriqués, les annoncer en temps réel
+                    // ferait passer une panne de l'API IDFM pour de la donnée vérifiée.
+                    'isRealtime' => false,
                     'platform' => null,
                 ];
             }

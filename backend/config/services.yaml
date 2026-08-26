@@ -1,6 +1,8 @@
 parameters:
     idfm_api_key: '%env(IDFM_API_KEY)%'
     idfm_api_base_url: 'https://prim.iledefrance-mobilites.fr/marketplace/v2/navitia'
+    # SIRI (temps réel) est servi à la racine du marketplace, hors de l'API Navitia.
+    idfm_siri_base_url: 'https://prim.iledefrance-mobilites.fr/marketplace'
 
 services:
     _defaults:
@@ -18,3 +20,4 @@ services:
         arguments:
             $apiKey: '%idfm_api_key%'
             $apiBaseUrl: '%idfm_api_base_url%'
+            $siriBaseUrl: '%idfm_siri_base_url%'
