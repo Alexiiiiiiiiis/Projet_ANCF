@@ -55,6 +55,28 @@ class LineControllerTest extends WebTestCase
         }
     }
 
+    public function testStatusReturnsOneEntryPerLine(): void
+    {
+        $this->client->request('GET', '/api/lines/status?ids=line:IDFM:C01742,line:IDFM:C01743');
+        $this->assertResponseIsSuccessful();
+
+        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $this->assertSame(2, $data['count']);
+        $this->assertSame(
+            ['line:IDFM:C01742', 'line:IDFM:C01743'],
+            array_column($data['statuses'], 'lineId')
+        );
+        foreach ($data['statuses'] as $statut) {
+            $this->assertContains($statut['severity'], ['NORMAL', 'INFO', 'MODERATE', 'MAJOR']);
+        }
+    }
+
+    public function testStatusRequiresIds(): void
+    {
+        $this->client->request('GET', '/api/lines/status');
+        $this->assertResponseStatusCodeSame(400);
+    }
+
     public function testStopsRejectsUnknownLine(): void
     {
         $this->client->request('GET', '/api/lines/line:IDFM:inconnue/stops');

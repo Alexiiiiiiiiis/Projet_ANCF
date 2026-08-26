@@ -602,6 +602,51 @@ class IdfmApiService
         return $lines;
     }
 
+    /**
+     * Etat de trafic d'une ligne, tel que l'affiche la pastille des lignes favorites.
+     *
+     * Seules comptent les perturbations qui visent la ligne et qui sont en cours : les pannes
+     * d'ascenseur d'une gare ni les travaux annonces pour le mois prochain ne rendent le
+     * trafic perturbe aujourd'hui.
+     *
+     * @return array{lineId: string, severity: string, category: string|null, count: int, title: string|null}
+     */
+    public function getLineTrafficStatus(string $lineId): array
+    {
+        $maintenant = time();
+        $rangs = ['MAJOR' => 0, 'MODERATE' => 1, 'INFO' => 2];
+        $enCours = [];
+
+        foreach ($this->getTrafficAlerts($lineId) as $alerte) {
+            if ('LINE' !== ($alerte['scope'] ?? 'LINE')) {
+                continue;
+            }
+
+            $debut = strtotime((string) ($alerte['startDate'] ?? ''));
+            $fin = null !== ($alerte['endDate'] ?? null) ? strtotime((string) $alerte['endDate']) : null;
+            if ((false !== $debut && $debut > $maintenant) || (null !== $fin && false !== $fin && $fin < $maintenant)) {
+                continue;
+            }
+
+            $enCours[] = $alerte;
+        }
+
+        if ([] === $enCours) {
+            return ['lineId' => $lineId, 'severity' => 'NORMAL', 'category' => null, 'count' => 0, 'title' => null];
+        }
+
+        usort($enCours, static fn (array $a, array $b): int => ($rangs[$a['severity']] ?? 3) <=> ($rangs[$b['severity']] ?? 3));
+        $pire = $enCours[0];
+
+        return [
+            'lineId' => $lineId,
+            'severity' => $pire['severity'],
+            'category' => $pire['category'],
+            'count' => count($enCours),
+            'title' => $pire['title'],
+        ];
+    }
+
     /** @return array<string, mixed>|null */
     private function getMockLine(string $lineId): ?array
     {
@@ -1349,6 +1394,11 @@ class IdfmApiService
                 'transportType' => $transportType,
                 'severity' => $this->mapSeverity($disruption['severity']['effect'] ?? ($disruption['severity']['name'] ?? 'INFO')),
                 'category' => $this->mapCategory($categoryText),
+                // Une panne d'ascenseur vise une gare, une interruption vise la ligne : IDFM
+                // les melange dans le meme flux, et sans cette distinction l'etat de trafic
+                // d'une ligne serait perturbe en permanence (209 notices d'equipement contre
+                // 3 vraies perturbations sur le RER A un soir ordinaire).
+                'scope' => $this->extractScope($disruption['impacted_objects'] ?? []),
                 'title' => $title,
                 'description' => $this->extractMessage($disruption['messages'] ?? [], 'web') ?? '',
                 'estimatedResume' => null,
@@ -1413,6 +1463,24 @@ class IdfmApiService
         }
 
         return array_values($grouped);
+    }
+
+    /**
+     * LINE quand la perturbation touche la ligne elle-meme (interruption, retards, travaux),
+     * STOP quand elle ne vise qu'un point d'arret (ascenseur, escalator, acces ferme).
+     *
+     * @param array<int, array<string, mixed>> $impactedObjects
+     */
+    private function extractScope(array $impactedObjects): string
+    {
+        foreach ($impactedObjects as $object) {
+            $type = $object['pt_object']['embedded_type'] ?? '';
+            if (in_array($type, ['line', 'route', 'network'], true)) {
+                return 'LINE';
+            }
+        }
+
+        return 'STOP';
     }
 
     /** @return array{0: string, 1: string} [lineCode, transportType] */

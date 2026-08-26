@@ -89,6 +89,7 @@ projet/
 | GET     | /api/schedules/{stopId}    | Prochains départs (`?type=` mode, `?line=` ligne, `?limit=` jusqu'à 40) | Non  |
 | GET     | /api/lines?type=          | Lignes d'un mode (METRO, RER, TRAM, BUS) | Non  |
 | GET     | /api/lines/{lineId}/stops  | Arrêts desservis par une ligne  | Non  |
+| GET     | /api/lines/status?ids=     | État de trafic de plusieurs lignes | Non  |
 | GET     | /api/alerts                | Alertes trafic                  | Non  |
 | GET     | /api/favorites             | Mes favoris                     | Oui  |
 | POST    | /api/favorites             | Ajouter un favori               | Oui  |

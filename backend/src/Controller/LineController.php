@@ -41,6 +41,34 @@ class LineController extends AbstractController
         ]);
     }
 
+    /** Nombre de lignes interrogeables d'un coup : au-delà, la page n'affiche plus de pastilles. */
+    private const STATUS_MAX_LINES = 20;
+
+    /**
+     * État de trafic de plusieurs lignes à la fois — la pastille des lignes favorites. Une
+     * requête par ligne ferait autant d'allers-retours que de favoris pour trois mots de
+     * réponse chacun.
+     */
+    #[Route('/status', name: 'lines_status', methods: ['GET'])]
+    public function status(Request $request): JsonResponse
+    {
+        $ids = array_filter(array_map('trim', explode(',', $request->query->getString('ids', ''))));
+
+        if ([] === $ids) {
+            return $this->json(['error' => 'Paramètre ids requis.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $statuses = array_map(
+            fn (string $lineId) => $this->idfmApi->getLineTrafficStatus($lineId),
+            array_slice(array_values(array_unique($ids)), 0, self::STATUS_MAX_LINES)
+        );
+
+        return $this->json([
+            'count' => count($statuses),
+            'statuses' => $statuses,
+        ]);
+    }
+
     #[Route('/{lineId}/stops', name: 'line_stops', methods: ['GET'])]
     public function stops(string $lineId): JsonResponse
     {

@@ -883,6 +883,99 @@ class IdfmApiServiceTest extends TestCase
         $this->assertContains('perturbation-structurante', $ids);
     }
 
+    // --- Etat de trafic d'une ligne (pastille des favoris) --------------------
+
+    /**
+     * @param array<int, array<string, mixed>> $disruptions
+     */
+    private function reponseLineReports(array $disruptions): void
+    {
+        $reponse = $this->createMock(ResponseInterface::class);
+        $reponse->method('toArray')->willReturn(['disruptions' => $disruptions]);
+        $this->httpClient->method('request')->willReturn($reponse);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function perturbation(string $id, string $type, string $debut, ?string $fin = null, string $effet = 'SIGNIFICANT_DELAYS'): array
+    {
+        return [
+            'id' => $id,
+            'status' => 'active',
+            'severity' => ['effect' => $effet],
+            'messages' => [['text' => 'Perturbation '.$id, 'channel' => ['types' => ['title']]]],
+            'application_periods' => [array_filter(['begin' => $debut, 'end' => $fin])],
+            'impacted_objects' => [['pt_object' => ['embedded_type' => $type]]],
+        ];
+    }
+
+    public function testAlertsCarryTheirScope(): void
+    {
+        $hier = (new \DateTimeImmutable('-1 day'))->format('Ymd\THis');
+
+        $this->reponseLineReports([
+            $this->perturbation('sur-la-ligne', 'line', $hier),
+            $this->perturbation('ascenseur', 'stop_area', $hier),
+        ]);
+
+        $alertes = $this->createService('test-api-key')->getTrafficAlerts('line:IDFM:C01742');
+        $portees = array_column($alertes, 'scope', 'id');
+
+        $this->assertSame('LINE', $portees['sur-la-ligne']);
+        $this->assertSame('STOP', $portees['ascenseur']);
+    }
+
+    public function testLineTrafficStatusIgnoresStationEquipment(): void
+    {
+        // Un soir ordinaire, le RER A cumule plus de 200 pannes d'ascenseur : les compter
+        // afficherait un trafic perturbe en permanence.
+        $hier = (new \DateTimeImmutable('-1 day'))->format('Ymd\THis');
+
+        $this->reponseLineReports([
+            $this->perturbation('ascenseur-1', 'stop_area', $hier),
+            $this->perturbation('ascenseur-2', 'stop_area', $hier),
+        ]);
+
+        $etat = $this->createService('test-api-key')->getLineTrafficStatus('line:IDFM:C01742');
+
+        $this->assertSame('NORMAL', $etat['severity']);
+        $this->assertSame(0, $etat['count']);
+    }
+
+    public function testLineTrafficStatusReportsTheWorstOngoingDisruption(): void
+    {
+        $hier = (new \DateTimeImmutable('-1 day'))->format('Ymd\THis');
+        $demain = (new \DateTimeImmutable('+1 day'))->format('Ymd\THis');
+
+        $this->reponseLineReports([
+            $this->perturbation('retards', 'line', $hier, $demain),
+            $this->perturbation('interruption', 'line', $hier, $demain, 'NO_SERVICE'),
+        ]);
+
+        $etat = $this->createService('test-api-key')->getLineTrafficStatus('line:IDFM:C01742');
+
+        $this->assertSame('MAJOR', $etat['severity']);
+        $this->assertSame(2, $etat['count']);
+        $this->assertSame('Perturbation interruption', $etat['title']);
+    }
+
+    public function testLineTrafficStatusIgnoresPastAndFutureDisruptions(): void
+    {
+        $avantHier = (new \DateTimeImmutable('-2 days'))->format('Ymd\THis');
+        $hier = (new \DateTimeImmutable('-1 day'))->format('Ymd\THis');
+        $demain = (new \DateTimeImmutable('+1 day'))->format('Ymd\THis');
+        $dansDeuxJours = (new \DateTimeImmutable('+2 days'))->format('Ymd\THis');
+
+        $this->reponseLineReports([
+            $this->perturbation('terminee', 'line', $avantHier, $hier),
+            $this->perturbation('a-venir', 'line', $demain, $dansDeuxJours),
+        ]);
+
+        // Des travaux annonces pour la semaine prochaine ne perturbent pas le trafic ce soir.
+        $this->assertSame('NORMAL', $this->createService('test-api-key')->getLineTrafficStatus('line:IDFM:C01742')['severity']);
+    }
+
     public function testGetLineAlertsCallsOnlyThatLine(): void
     {
         $apiResponse = $this->createMock(ResponseInterface::class);
