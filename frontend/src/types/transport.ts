@@ -20,6 +20,8 @@ export interface Departure {
   waitMinutes: number
   isRealtime: boolean
   platform?: string | null
+  /** Heure de passage ISO — absente des donnees mises en cache avant son ajout */
+  departureTime?: string | null
 }
 
 export interface StopWithDepartures extends Stop {

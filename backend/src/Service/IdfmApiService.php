@@ -865,6 +865,9 @@ class IdfmApiService
                     break;
                 }
             }
+                // Heure de passage en clair : « départ à 8h12 » reste juste quand la page est
+                // restée ouverte, là où le nombre de minutes vieillit avec le cache.
+                'departureTime' => $departureTime->format(DATE_ATOM),
         } catch (\Throwable) {
             // On garde ce qui a déjà été récupéré avant l'échec.
         }
@@ -1342,6 +1345,7 @@ class IdfmApiService
                 'transportType' => 'RER',
                 'severity' => 'MODERATE',
                 'category' => 'INCIDENT',
+                'departureTime' => $departureTime->format(DATE_ATOM),
                 'title' => 'Ralentissements +5-10 min sur le RER B',
                 'description' => 'Suite à un incident technique à Gare du Nord, des ralentissements de 5 à 10 minutes sont à prévoir.',
                 'estimatedResume' => null,
@@ -1473,3 +1477,4 @@ class IdfmApiService
         ];
     }
 }
+                    'departureTime' => (new \DateTimeImmutable("+{$wait} minutes"))->format(DATE_ATOM),
