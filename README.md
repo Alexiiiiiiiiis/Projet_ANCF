@@ -273,6 +273,67 @@ Les migrations Doctrine sont appliquées automatiquement au démarrage du conten
 `RUN_MIGRATIONS=0` si plusieurs instances tournent en parallèle, pour éviter qu'elles migrent la
 même base simultanément.
 
+### API sur un hébergement mutualisé (AlwaysData)
+
+Un mutualisé PHP + MySQL héberge l'API en permanence, sans conteneur et sans machine allumée à
+la maison. Deux différences avec un hébergeur de conteneurs : Apache remplace nginx — d'où
+`backend/public/.htaccess`, sans lequel toutes les routes autres que `/` renvoient 404 — et il
+n'y a pas de Redis, le cache applicatif retombant alors sur le disque (`config/packages/prod/cache.php`).
+
+**1. Dans l'admin AlwaysData**, avant tout déploiement :
+
+| Écran | Réglage |
+|---|---|
+| Environnement → PHP | version 8.2 ou plus (`composer.json` l'exige) |
+| Bases de données → MySQL | créer la base et son utilisateur, noter hôte / base / identifiants |
+| Accès distant → SSH | activer, et y déposer sa clé publique pour éviter la saisie du mot de passe |
+| Web → Sites | site **PHP**, adresse `transport-ancf.alwaysdata.net`, racine `/www/Projet_ANCF/backend/public` |
+
+La racine du site pointe sur `public/`, jamais sur la racine du dépôt : sinon `.env.local`, les
+clés JWT et le code source deviennent téléchargeables depuis le navigateur.
+
+**2. Récupérer le code et le configurer**, en SSH :
+```bash
+ssh transport-ancf@ssh-transport-ancf.alwaysdata.net
+git clone https://github.com/Alexiiiiiiiiis/Projet_ANCF.git ~/www/Projet_ANCF
+cd ~/www/Projet_ANCF/backend
+cp .env.dist .env.local   # puis renseigner les valeurs ci-dessous
+```
+
+`.env.local` (ignoré par git, lu aussi bien par Apache que par les commandes SSH) :
+
+| Variable | Valeur |
+|---|---|
+| `APP_ENV` | `prod` |
+| `APP_SECRET` | chaîne aléatoire (`openssl rand -hex 32`) |
+| `DATABASE_URL` | `mysql://utilisateur:motdepasse@mysql-transport-ancf.alwaysdata.net:3306/base?serverVersion=8.0&charset=utf8mb4` |
+| `JWT_PASSPHRASE` | passphrase des clés JWT (générées au premier déploiement) |
+| `REDIS_URL` | laisser **vide** — le cache bascule sur le disque |
+| `CORS_ALLOW_ORIGIN` | `^https://transport-ancf(-[a-z0-9-]+)?\.vercel\.app$` |
+| `FRONTEND_URL` | `https://transport-ancf.vercel.app` |
+| `IDFM_API_KEY` | clé PRIM (facultatif — données simulées si vide) |
+| `MAILER_DSN` | `null://null`, ou un DSN SMTP réel |
+
+Un mot de passe MySQL contenant `@ : / ? # &` doit être encodé (`%40`, `%3A`…) : ces caractères
+coupent le DSN en deux et produisent une erreur de connexion peu lisible.
+
+**3. Déployer** — c'est aussi la commande de mise à jour, après un `git pull` :
+```bash
+sh scripts/deploy-alwaysdata.sh
+```
+Le script installe les dépendances sans les paquets de développement, génère les clés JWT à la
+première exécution, applique les migrations et réchauffe le cache.
+
+**4. Brancher le frontend** sur cette URL, une fois pour toutes :
+```bash
+cd frontend
+npx vercel env rm VITE_API_URL production --yes
+printf 'https://transport-ancf.alwaysdata.net/api' | npx vercel env add VITE_API_URL production
+npx vercel deploy --prod
+```
+Contrairement au tunnel de démonstration, l'URL ne change plus : ce redéploiement n'est à faire
+qu'une seule fois.
+
 ### Mode démonstration : API exposée depuis le poste de développement
 
 Pour une soutenance, l'API peut tourner sur la machine de développement et être exposée par un
