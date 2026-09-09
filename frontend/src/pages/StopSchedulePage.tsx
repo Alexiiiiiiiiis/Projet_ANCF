@@ -141,9 +141,11 @@ export function StopSchedulePage() {
         </div>
       )}
 
+      {/* Le bandeau compte les perturbations d'une seule ligne : il doit ouvrir ses infos
+          trafic, pas les alertes de tout le réseau. */}
       {perturbations.length > 0 && (
         <Link
-          to="/alertes"
+          to={`/horaires/ligne/${encodeURIComponent(ligneIdDorigine!)}?onglet=trafic`}
           className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 transition-colors hover:border-red-300"
         >
           <span>

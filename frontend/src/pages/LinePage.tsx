@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { LineBadge } from '../components/lines/LineBadge'
 import { AlertCard } from '../components/alerts/AlertCard'
@@ -24,8 +24,12 @@ function normaliser(texte: string): string {
 export function LinePage() {
   const { lineId = '' } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { canFavorite, isFavorite, toggle, error: favoriError, clearError } = useFavorites()
-  const [onglet, setOnglet] = useState<'ARRETS' | 'TRAFIC'>('ARRETS')
+  // Le bandeau de perturbations d'un arrêt renvoie ici : on ouvre alors directement l'onglet.
+  const [onglet, setOnglet] = useState<'ARRETS' | 'TRAFIC'>(
+    searchParams.get('onglet') === 'trafic' ? 'TRAFIC' : 'ARRETS'
+  )
   const [filtre, setFiltre] = useState('')
   const [visiblesStations, setVisiblesStations] = useState(10)
 
