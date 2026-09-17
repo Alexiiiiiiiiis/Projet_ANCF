@@ -37,6 +37,16 @@ export function Navbar() {
         </nav>
 
         <div className="flex items-center gap-3">
+          {isAdmin && (
+            <Link
+              to="/admin"
+              className="rounded-lg bg-orange-100 px-2.5 py-1.5 text-sm text-orange-700 hover:bg-orange-200 transition-colors md:hidden"
+              aria-label="Dashboard admin"
+              title="Dashboard admin"
+            >
+              🛡️
+            </Link>
+          )}
           <button
             onClick={toggleTheme}
             className="rounded-lg bg-gray-100 px-2.5 py-1.5 text-sm hover:bg-gray-200 transition-colors"
