@@ -4,7 +4,7 @@
 
 Application web permettant de consulter en temps réel les horaires des transports en commun d'Île-de-France (RER, Métro, Tramway, Bus).
 
-**Stack :** Symfony 7 API + React 18 + MySQL 8 + Docker
+**Stack :** Symfony 7 API + React 18 + MySQL 8 + Redis 7 + Docker
 
 ---
 
@@ -67,33 +67,56 @@ projet/
 ├── backend/          # Symfony 7 REST API
 ├── frontend/         # React 18 + TypeScript (Vite)
 ├── docker/           # Dockerfiles & configurations
-│   ├── php/
-│   ├── nginx/
-│   └── mysql/
+│   ├── php/          # image PHP-FPM (Docker Compose)
+│   ├── nginx/        # reverse proxy, embarque le frontend buildé en production
+│   ├── mysql/        # script d'initialisation de la base
+│   └── api/          # image mono-conteneur nginx + PHP-FPM (hébergeurs PaaS)
+├── config/jwt/       # clés JWT de la prod Docker et de la démo (non versionnées)
+├── scripts/          # déploiement AlwaysData, démonstration publique
 ├── .github/
-│   └── workflows/    # GitHub Actions CI/CD
-├── docs/             # Documentation (Jalons 3-6)
+│   └── workflows/    # GitHub Actions : ci.yml et cd.yml
 ├── docker-compose.yml        (développement)
-└── docker-compose.prod.yml   (production)
+├── docker-compose.prod.yml   (production)
+└── railway.json              (hébergement Railway)
 ```
 
 ## API Endpoints
 
+**Auth** : *Non* = public, *Oui* = JWT requis, *Facultative* = réponse enrichie si connecté,
+*Admin* = `ROLE_ADMIN`.
+
 | Méthode | Endpoint                   | Description                     | Auth |
 |---------|----------------------------|---------------------------------|------|
+| GET     | /api/health                | Sonde de santé (503 si la base est injoignable) | Non  |
 | POST    | /api/auth/register         | Inscription                     | Non  |
 | POST    | /api/auth/login_check      | Connexion → JWT                 | Non  |
+| POST    | /api/auth/forgot-password  | Envoi d'un lien de réinitialisation du mot de passe | Non  |
+| POST    | /api/auth/reset-password   | Nouveau mot de passe (`token`, `newPassword`) | Non  |
 | GET     | /api/auth/me               | Profil utilisateur              | Oui  |
-| GET     | /api/stops/search?q=       | Recherche d'arrêts              | Non  |
-| GET     | /api/stops/nearby?lat&lon  | Arrêts à proximité              | Non  |
-| GET     | /api/schedules/{stopId}    | Prochains départs (`?type=` mode, `?line=` ligne, `?limit=` jusqu'à 40) | Non  |
-| GET     | /api/lines?type=          | Lignes d'un mode (METRO, RER, TRAM, BUS) | Non  |
+| PUT     | /api/auth/me               | Modifier prénom, nom ou email   | Oui  |
+| PUT     | /api/auth/change-password  | Changer de mot de passe (`currentPassword`, `newPassword`) | Oui  |
+| DELETE  | /api/auth/account          | Supprimer son compte et ses données — mot de passe requis | Oui  |
+| GET     | /api/stops/search?q=       | Recherche d'arrêts (`?type=`, `?limit=` jusqu'à 20) | Non  |
+| GET     | /api/stops/nearby?lat&lon  | Arrêts à proximité (`?radius=` jusqu'à 2000 m, `?type=`) | Non  |
+| GET     | /api/stops/history         | 8 dernières recherches de l'utilisateur (liste vide sans connexion) | Facultative |
+| GET     | /api/stops/{stopId}        | Prochains départs d'un arrêt    | Non  |
+| GET     | /api/schedules/{stopId}    | Prochains départs — 5 par défaut (`?type=` mode, `?line=` ligne, `?limit=` jusqu'à 40) | Non  |
+| GET     | /api/lines?type=           | Lignes d'un mode (METRO, RER, TRAM, BUS) | Non  |
 | GET     | /api/lines/{lineId}/stops  | Arrêts desservis par une ligne  | Non  |
 | GET     | /api/lines/status?ids=     | État de trafic de plusieurs lignes | Non  |
-| GET     | /api/alerts                | Alertes trafic                  | Non  |
+| GET     | /api/alerts                | Alertes trafic (`?lineId=`, `?severity=`, `?type=`, `?category=`, `?page=`, `?limit=` jusqu'à 100) | Non  |
+| GET     | /api/alerts/{lineId}       | Alertes d'une ligne             | Non  |
+| GET     | /api/journeys?from&to      | Calcul d'itinéraire             | Oui  |
 | GET     | /api/favorites             | Mes favoris                     | Oui  |
 | POST    | /api/favorites             | Ajouter un favori — arrêt, ou ligne avec `kind: LINE` | Oui  |
-| GET     | /api/admin/stats           | Statistiques admin              | Admin|
+| DELETE  | /api/favorites/{id}        | Retirer un favori               | Oui  |
+| PUT     | /api/favorites/{id}/reorder | Déplacer un favori (`sortOrder`) | Oui  |
+| GET     | /api/admin/stats           | Statistiques, dont le quota IDFM (`apiQuota`) | Admin|
+| GET     | /api/admin/users           | Utilisateurs, paginés (`?page=`, `?limit=` jusqu'à 100) | Admin|
+| PUT     | /api/admin/users/{id}/toggle | Bloquer ou réactiver un compte | Admin|
+| GET     | /api/admin/api-logs        | Derniers appels à l'API IDFM et temps de réponse moyen (`?limit=` jusqu'à 200) | Admin|
+| GET     | /api/admin/parameters      | Paramètres système              | Admin|
+| PUT     | /api/admin/parameters/{id} | Modifier un paramètre (`value`) | Admin|
 
 ## Sécurité
 
@@ -103,7 +126,7 @@ projet/
 - **Brute force** : `login_throttling` Symfony (composant RateLimiter) — 5 tentatives max, puis blocage 15 minutes par couple email/IP. Même composant utilisé pour limiter `/api/auth/register` (5/heure/IP) et `/api/auth/forgot-password` (3/15min/IP), qui n'ont pas de firewall d'authentification et n'étaient donc protégées par rien.
 - **Mots de passe** : hachés via le hasher Symfony (bcrypt/argon2 auto), minimum 8 caractères, jamais stockés ni loggés en clair.
 - **Clés API** : uniquement en variables d'environnement (`.env` gitignoré), jamais en dur ni côté front.
-- **Contrôle d'accès** : routes `/api/admin/*` réservées à `ROLE_ADMIN` (firewall Symfony), CORS restreint via NelmioCorsBundle.
+- **Contrôle d'accès** : routes `/api/admin/*` réservées à `ROLE_ADMIN` et calcul d'itinéraire (`/api/journeys`) aux utilisateurs connectés (firewall Symfony), CORS restreint via NelmioCorsBundle.
 - **RGPD** : suppression de compte (et données associées), mentions légales et politique de confidentialité dans l'application.
 
 ## Écarts par rapport au cahier des charges (CDC V4)
@@ -117,15 +140,15 @@ automatisés, cartographie interactive) restent pleinement atteints.
 |---|---|---|
 | Material-UI ou Bootstrap React | **Tailwind CSS** | Contrôle plus fin, bundle plus léger qu'un framework de composants complet ; l'appli n'a besoin d'aucun composant préfabriqué complexe (data grid, date picker...), juste d'une mise en page cohérente. |
 | Jest | **Vitest** | Le frontend est bâti avec Vite : Vitest partage sa config/transformation avec le build de dev, expose une API quasi identique à Jest, et s'intègre nativement — c'est le choix recommandé par l'écosystème Vite lui-même plutôt que d'ajouter un second toolchain de test. |
-| API Platform ou FOSRestBundle | Contrôleurs Symfony classiques (`AbstractController` + `JsonResponse`) | FOSRestBundle n'est plus activement maintenu. API Platform apporte une couche de génération automatique (OpenAPI, sérialisation par groupes, filtres) disproportionnée pour une douzaine d'endpoints REST simples, et rend plus difficile d'y intégrer la logique métier spécifique du projet (cache, mode dégradé, agrégations). Les contrôleurs classiques produisent une API RESTful tout aussi conforme, et plus lisible à cette échelle. |
+| API Platform ou FOSRestBundle | Contrôleurs Symfony classiques (`AbstractController` + `JsonResponse`) | FOSRestBundle n'est plus activement maintenu. API Platform apporte une couche de génération automatique (OpenAPI, sérialisation par groupes, filtres) disproportionnée pour une trentaine d'endpoints REST simples, et rend plus difficile d'y intégrer la logique métier spécifique du projet (cache, mode dégradé, agrégations). Les contrôleurs classiques produisent une API RESTful tout aussi conforme, et plus lisible à cette échelle. |
 | Google Maps ou Mapbox | **Leaflet + OpenStreetMap** | Le CDC cite lui-même OpenStreetMap (§5.2) comme mitigation au risque de quota gratuit limité de Mapbox — plutôt que d'introduire cette dépendance puis la contourner, le projet part directement sur Leaflet/OSM : ni clé API ni quota à surveiller, alors que le projet en gère déjà un (IDFM, cf. `/api/admin/stats.apiQuota`) et a appris à ses dépens ce que ça implique. |
 
 Deux exigences fonctionnelles méritent aussi une précision sur la façon dont elles sont couvertes :
 
-- **F3.1** (minimum 3 prochains passages) : l'application affiche jusqu'à 5 passages dès qu'ils
-  existent, mais ne peut pas garantir un minimum de 3 si la source de données (réelle ou
-  dégradée) n'en fournit pas assez — impossible d'inventer des passages qui n'existent pas
-  (ligne peu fréquente, fin de service).
+- **F3.1** (minimum 3 prochains passages) : l'application affiche 5 passages par défaut (accueil,
+  carte, favoris) et jusqu'à 40 sur la fiche d'un arrêt, mais ne peut pas garantir un minimum de 3
+  si la source de données (réelle ou dégradée) n'en fournit pas assez — impossible d'inventer des
+  passages qui n'existent pas (ligne peu fréquente, fin de service).
 - **F6.4** (distance à pied) : approximée via un facteur de détour urbain (`GeoService::
   estimateWalkingDistance`, ×1.3 appliqué à la distance à vol d'oiseau) plutôt qu'un vrai calcul
   d'itinéraire piéton, pour éviter une dépendance à un second service externe avec son propre
@@ -134,21 +157,30 @@ Deux exigences fonctionnelles méritent aussi une précision sur la façon dont 
 
 ## Tests
 ```bash
-# Backend (PHPUnit)
+# Backend (PHPUnit) — toutes les suites, ou une seule avec --testsuite=Unit / Functional
 docker compose exec php vendor/bin/phpunit
+
+# Backend — analyse statique (PHPStan, même niveau que la CI)
+docker compose exec php vendor/bin/phpstan analyse src --level=5
 
 # Backend — style de code (PSR-12 / Symfony, via PHP-CS-Fixer)
 docker compose exec php composer cs-check   # vérifie sans modifier
 docker compose exec php composer cs-fix     # corrige automatiquement
 
-# Frontend (Vitest)
-docker compose exec frontend npm test
+# Frontend (Vitest) — sans --run, Vitest reste en mode watch
+docker compose exec frontend npm test -- --run
+
+# Frontend — typage et lint
+docker compose exec frontend npx tsc --noEmit
+docker compose exec frontend npm run lint
 ```
 
 ## CI/CD (GitHub Actions)
-- **Push sur `develop`** → tests unitaires + tests d'intégration (PHPUnit), PHPStan, ESLint, TypeScript, Vitest, build Docker
-- **Push sur `main`** → idem + vérification docker-compose
-- **Tag `v*.*.*`** → build & push des images sur Docker Hub + création d'une GitHub Release
+- **Push ou pull request sur `develop` / `main`** (`ci.yml`) :
+  - backend → PHPStan (niveau 5), PHP-CS-Fixer (non bloquant), tests unitaires puis tests d'intégration PHPUnit avec couverture
+  - frontend → TypeScript, ESLint, Vitest, build de production
+- **Push sur `develop` / `main`** (pas sur les pull requests) → en plus, build de l'image PHP et validation de `docker-compose.yml`
+- **Tag `v*.*.*`** (`cd.yml`) → build & push sur Docker Hub des images backend, API mono-conteneur et nginx/frontend, puis création d'une GitHub Release
 
 ## Déploiement en production
 
