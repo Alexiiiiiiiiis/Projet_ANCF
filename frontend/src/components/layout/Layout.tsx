@@ -3,6 +3,7 @@ import { Navbar } from './Navbar'
 import { BottomNav } from './BottomNav'
 import { Footer } from './Footer'
 
+/** Mise en page commune : barre du haut, contenu de la page, pied de page et navigation mobile. */
 export function Layout() {
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">

@@ -8,9 +8,11 @@ interface BackButtonProps {
   className?: string
 }
 
+/** Bouton retour vers la page précédente, ou vers `fallback` s'il n'y en a pas. */
 export function BackButton({ label = 'Retour', fallback = '/', className = '' }: BackButtonProps) {
   const navigate = useNavigate()
 
+  /** Revient en arrière dans l'application si possible, sinon va sur la page de repli. */
   const handleClick = () => {
     if (peutRevenirEnArriere()) navigate(-1)
     else navigate(fallback, { replace: true })

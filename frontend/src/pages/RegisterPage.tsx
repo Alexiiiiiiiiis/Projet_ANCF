@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { Spinner } from '../components/ui/Spinner'
 import { BackButton } from '../components/ui/BackButton'
 
+/** Page d'inscription. */
 export function RegisterPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -14,9 +15,11 @@ export function RegisterPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  /** Met à jour un champ du formulaire à chaque frappe. */
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }))
 
+  /** Vérifie le mot de passe, crée le compte puis connecte l'utilisateur. */
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (form.password.length < 8) {

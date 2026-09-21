@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 
+/** Pied de page avec les liens vers les mentions légales et la politique de confidentialité. */
 export function Footer() {
   return (
     <footer className="mt-auto border-t bg-white pb-20 md:pb-6">

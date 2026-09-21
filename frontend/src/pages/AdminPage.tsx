@@ -48,6 +48,7 @@ interface ParamsResponse {
   parameters: SystemParam[]
 }
 
+/** Carte d'un chiffre du tableau de bord (icône, valeur, libellé). */
 const StatCard = ({ label, value, icon }: { label: string; value: string | number; icon: string }) => (
   <div className="rounded-xl bg-white p-5 shadow-sm">
     <div className="flex items-center justify-between">
@@ -58,6 +59,7 @@ const StatCard = ({ label, value, icon }: { label: string; value: string | numbe
   </div>
 )
 
+/** Tableau de bord admin : statistiques, utilisateurs, logs API et paramètres système. */
 export function AdminPage() {
   const queryClient = useQueryClient()
   const [editingParam, setEditingParam] = useState<number | null>(null)
@@ -118,11 +120,13 @@ export function AdminPage() {
     onError: () => setActionError('Impossible d\'enregistrer ce paramètre. Réessayez.'),
   })
 
+  /** Passe un paramètre système en mode édition. */
   const startEdit = (param: SystemParam) => {
     setEditingParam(param.id)
     setEditValue(param.value)
   }
 
+  /** Enregistre la nouvelle valeur du paramètre en cours d'édition. */
   const saveEdit = (id: number) => {
     updateParamMutation.mutate({ id, value: editValue })
   }

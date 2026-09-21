@@ -25,6 +25,7 @@ const TABS: { value: 'FAVORIS' | TransportType; label: string; icon: string }[] 
 // Le réseau bus compte près de 2000 lignes : on en affiche une tranche, le filtre fait le reste.
 const BUS_PAGE = 60
 
+/** Page Horaires : onglets Favoris / RER / Métro / Tram / Bus, puis liste des lignes. */
 export function SchedulesPage() {
   const navigate = useNavigate()
   const { stops: arretsFavoris, lines: lignesFavorites, canFavorite } = useFavorites()
@@ -50,14 +51,17 @@ export function SchedulesPage() {
     )
   }, [lines, filtre])
 
+  /** Change d'onglet et remet à zéro le filtre et la pagination. */
   const changerOnglet = (value: 'FAVORIS' | TransportType) => {
     setTab(value)
     setFiltre('')
     setAffichees(BUS_PAGE)
   }
 
+  /** Ouvre la fiche horaires d'un arrêt. */
   const ouvrirArret = (stop: Stop) => navigate(stopScheduleUrl(stop))
 
+  /** Convertit un arrêt favori en objet Stop pour l'afficher. */
   const favoriAsStop = (fav: FavoriteStop): Stop => ({
     id: fav.stopId,
     name: fav.stopName,

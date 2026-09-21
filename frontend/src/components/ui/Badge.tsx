@@ -4,6 +4,7 @@ interface BadgeProps {
   className?: string
 }
 
+/** Petite pastille colorée avec un texte. */
 export function Badge({ label, color = '#1a73e8', className = '' }: BadgeProps) {
   return (
     <span

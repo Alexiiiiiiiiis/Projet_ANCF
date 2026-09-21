@@ -4,7 +4,7 @@ use Symfony\Component\Dotenv\Dotenv;
 
 require dirname(__DIR__).'/vendor/autoload.php';
 
-// Force test environment for PHPUnit
+// Force l'environnement de test pour PHPUnit
 $_SERVER['APP_ENV'] = 'test';
 $_ENV['APP_ENV'] = 'test';
 putenv('APP_ENV=test');

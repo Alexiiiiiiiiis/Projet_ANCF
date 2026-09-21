@@ -23,11 +23,13 @@ class PruneApiLogsCommand extends Command
         parent::__construct();
     }
 
+    /** Déclare l'option --days (30 jours par défaut). */
     protected function configure(): void
     {
         $this->addOption('days', null, InputOption::VALUE_REQUIRED, 'Ancienneté (en jours) au-delà de laquelle purger', '30');
     }
 
+    /** Supprime les logs API plus vieux que --days jours et affiche combien ont été supprimés. */
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);

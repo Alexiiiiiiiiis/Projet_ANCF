@@ -15,6 +15,7 @@ class AppFixtures extends Fixture
     ) {
     }
 
+    /** Remplit la base de démo : un admin, un utilisateur et les paramètres système. */
     public function load(ObjectManager $manager): void
     {
         $this->createUser(
@@ -40,6 +41,7 @@ class AppFixtures extends Fixture
         $manager->flush();
     }
 
+    /** Crée les paramètres système par défaut (rafraîchissement, rayon, cache...). */
     private function loadSystemParameters(ObjectManager $manager): void
     {
         $defaults = [
@@ -62,6 +64,7 @@ class AppFixtures extends Fixture
         }
     }
 
+    /** Crée un utilisateur avec son mot de passe hashé. */
     private function createUser(
         ObjectManager $manager,
         string $email,

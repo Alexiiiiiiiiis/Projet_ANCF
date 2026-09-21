@@ -6,11 +6,13 @@ import { transportService } from '../services/transportService'
 import type { Stop } from '../types/transport'
 import { TRANSPORT_COLORS, TRANSPORT_LABELS } from '../types/transport'
 
+/** Heure ISO → « 08:12 » (« --:-- » si elle est absente). */
 function formatTime(iso: string | null): string {
   if (!iso) return '--:--'
   return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 }
 
+/** Page itinéraire : choix du départ et de l'arrivée, puis trajets proposés. */
 export function JourneyPage() {
   const [from, setFrom] = useState<Stop | null>(null)
   const [to, setTo] = useState<Stop | null>(null)

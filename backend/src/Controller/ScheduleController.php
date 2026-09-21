@@ -19,6 +19,7 @@ class ScheduleController extends AbstractController
     /** Modes acceptés par ?type= ; toute autre valeur est ignorée plutôt que rejetée. */
     private const TYPES = ['METRO', 'RER', 'TRAM', 'BUS'];
 
+    /** GET /api/schedules/{stopId} : prochains départs d'un arrêt, filtrables par mode et par ligne. */
     #[Route('/{stopId}', name: 'schedules_departures', methods: ['GET'])]
     public function departures(string $stopId, Request $request): JsonResponse
     {

@@ -13,16 +13,19 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+/** Fournit l'utilisateur connecté et les fonctions de connexion/déconnexion à toute l'application. */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
+  /** Supprime le token et l'utilisateur du navigateur (déconnexion). */
   const logout = useCallback(() => {
     localStorage.removeItem('ancf_token')
     localStorage.removeItem('ancf_user')
     setUser(null)
   }, [])
 
+  /** Recharge le profil depuis l'API si un token existe, sinon déconnecte. */
   const refreshUser = useCallback(async () => {
     const token = localStorage.getItem('ancf_token')
     if (!token) {
@@ -44,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshUser()
   }, [refreshUser])
 
+  /** Connecte l'utilisateur : récupère le token JWT puis son profil. */
   const login = useCallback(async (email: string, password: string) => {
     const { token } = await authService.login({ email, password })
     localStorage.setItem('ancf_token', token)
@@ -70,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 }
 
+/** Hook pour lire l'utilisateur connecté et les fonctions d'authentification. */
 // eslint-disable-next-line react-refresh/only-export-components -- hook colocalisé avec son Provider, pattern standard
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext)

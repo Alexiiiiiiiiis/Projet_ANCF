@@ -24,6 +24,7 @@ class FavoriteController extends AbstractController
     ) {
     }
 
+    /** GET /api/favorites : favoris de l'utilisateur connecté, dans l'ordre choisi. */
     #[Route('', name: 'favorites_list', methods: ['GET'])]
     public function list(#[CurrentUser] ?User $user): JsonResponse
     {
@@ -39,6 +40,7 @@ class FavoriteController extends AbstractController
         ]);
     }
 
+    /** POST /api/favorites : ajoute un arrêt ou une ligne aux favoris (refuse les doublons). */
     #[Route('', name: 'favorites_create', methods: ['POST'])]
     public function create(Request $request, #[CurrentUser] ?User $user): JsonResponse
     {
@@ -61,7 +63,7 @@ class FavoriteController extends AbstractController
             return $this->json(['error' => 'Champs invalides.'], Response::HTTP_BAD_REQUEST);
         }
 
-        // Check duplicate
+        // Refuse les doublons
         $existing = $this->favoriteRepo->findOneByUserAndStop($user, $stopId);
         if ($existing) {
             return $this->json([
@@ -98,6 +100,7 @@ class FavoriteController extends AbstractController
         return $this->json($favorite->toArray(), Response::HTTP_CREATED);
     }
 
+    /** DELETE /api/favorites/{id} : retire un favori de l'utilisateur connecté. */
     #[Route('/{id}', name: 'favorites_delete', methods: ['DELETE'])]
     public function delete(int $id, #[CurrentUser] ?User $user): JsonResponse
     {
@@ -117,6 +120,7 @@ class FavoriteController extends AbstractController
         return $this->json(['message' => 'Favori supprimé.']);
     }
 
+    /** PUT /api/favorites/{id}/reorder : change la position d'un favori dans la liste. */
     #[Route('/{id}/reorder', name: 'favorites_reorder', methods: ['PUT'])]
     public function reorder(int $id, Request $request, #[CurrentUser] ?User $user): JsonResponse
     {

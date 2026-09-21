@@ -64,7 +64,7 @@ class AuthControllerTest extends WebTestCase
     {
         $email = 'duplicate_'.uniqid().'@ancf.fr';
 
-        // First registration
+        // Première inscription
         $this->client->request(
             'POST',
             '/api/auth/register',
@@ -80,7 +80,7 @@ class AuthControllerTest extends WebTestCase
         );
         $this->assertResponseStatusCodeSame(201);
 
-        // Second registration — should fail
+        // Deuxième inscription avec le même email : doit échouer
         $this->client->request(
             'POST',
             '/api/auth/register',

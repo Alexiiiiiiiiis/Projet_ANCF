@@ -16,6 +16,7 @@ class ApiLogRepository extends ServiceEntityRepository
         parent::__construct($registry, ApiLog::class);
     }
 
+    /** Derniers logs API, du plus récent au plus ancien. */
     public function findRecent(int $limit = 50): array
     {
         return $this->createQueryBuilder('l')
@@ -25,6 +26,7 @@ class ApiLogRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    /** Nombre de réponses en erreur (code >= 400) depuis minuit. */
     public function countErrorsToday(): int
     {
         $today = new \DateTimeImmutable('today');
@@ -39,6 +41,7 @@ class ApiLogRepository extends ServiceEntityRepository
             ->getSingleScalarResult();
     }
 
+    /** Temps de réponse moyen (en ms) sur la dernière heure. */
     public function getAverageResponseTime(): float
     {
         $since = new \DateTimeImmutable('-1 hour');

@@ -43,6 +43,7 @@ class SystemParameter
     #[ORM\Column]
     private ?\DateTimeImmutable $updatedAt = null;
 
+    /** Met à jour la date de modification à chaque insertion ou modification. */
     #[ORM\PrePersist]
     #[ORM\PreUpdate]
     public function onPrePersist(): void
@@ -120,6 +121,7 @@ class SystemParameter
         return $this->updatedAt;
     }
 
+    /** Convertit le paramètre en tableau pour la réponse JSON. */
     public function toArray(): array
     {
         return [

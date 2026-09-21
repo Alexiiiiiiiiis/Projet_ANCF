@@ -29,6 +29,7 @@ class SearchHistory
     #[ORM\Column]
     private ?\DateTimeImmutable $createdAt = null;
 
+    /** Renseigne la date de la recherche juste avant l'insertion en base. */
     #[ORM\PrePersist]
     public function onPrePersist(): void
     {

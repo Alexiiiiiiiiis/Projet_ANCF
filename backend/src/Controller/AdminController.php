@@ -31,6 +31,7 @@ class AdminController extends AbstractController
     ) {
     }
 
+    /** GET /api/admin/stats : chiffres du tableau de bord admin (utilisateurs, requêtes, erreurs, quota API). */
     #[Route('/stats', name: 'admin_stats', methods: ['GET'])]
     public function stats(): JsonResponse
     {
@@ -53,6 +54,7 @@ class AdminController extends AbstractController
         ]);
     }
 
+    /** GET /api/admin/users : liste paginée des utilisateurs. */
     #[Route('/users', name: 'admin_users', methods: ['GET'])]
     public function users(Request $request): JsonResponse
     {
@@ -70,6 +72,7 @@ class AdminController extends AbstractController
         ]);
     }
 
+    /** PUT /api/admin/users/{id}/toggle : bloque ou réactive un compte utilisateur. */
     #[Route('/users/{id}/toggle', name: 'admin_users_toggle', methods: ['PUT'])]
     public function toggleUser(int $id): JsonResponse
     {
@@ -89,6 +92,7 @@ class AdminController extends AbstractController
         ]);
     }
 
+    /** GET /api/admin/api-logs : derniers appels à l'API et temps de réponse moyen. */
     #[Route('/api-logs', name: 'admin_api_logs', methods: ['GET'])]
     public function apiLogs(Request $request): JsonResponse
     {
@@ -104,6 +108,7 @@ class AdminController extends AbstractController
         ]);
     }
 
+    /** GET /api/admin/parameters : liste des paramètres système. */
     #[Route('/parameters', name: 'admin_parameters_list', methods: ['GET'])]
     public function parameters(): JsonResponse
     {
@@ -114,6 +119,7 @@ class AdminController extends AbstractController
         ]);
     }
 
+    /** PUT /api/admin/parameters/{id} : modifie la valeur d'un paramètre après vérification de son type. */
     #[Route('/parameters/{id}', name: 'admin_parameters_update', methods: ['PUT'])]
     public function updateParameter(int $id, Request $request): JsonResponse
     {

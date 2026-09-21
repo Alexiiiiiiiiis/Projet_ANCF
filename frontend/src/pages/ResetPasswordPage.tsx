@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { authService } from '../services/authService'
 import { Spinner } from '../components/ui/Spinner'
 
+/** Page de réinitialisation du mot de passe, ouverte depuis le lien reçu par email. */
 export function ResetPasswordPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -13,6 +14,7 @@ export function ResetPasswordPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  /** Vérifie le nouveau mot de passe puis l'envoie à l'API avec le token. */
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')

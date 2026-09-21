@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 
+/** Renvoie la valeur seulement après `delay` ms sans changement (évite une requête par touche). */
 export function useDebounce<T>(value: T, delay = 300): T {
   const [debounced, setDebounced] = useState(value)
 

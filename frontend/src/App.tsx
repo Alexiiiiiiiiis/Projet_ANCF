@@ -31,6 +31,7 @@ const queryClient = new QueryClient({
   },
 })
 
+/** Racine de l'application : fournisseurs globaux (React Query, authentification) et toutes les routes. */
 export default function App() {
   return (
     <ErrorBoundary>

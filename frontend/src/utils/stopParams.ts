@@ -34,6 +34,7 @@ export function stopScheduleUrl(stop: Stop, extra: Record<string, string> = {}):
   return `/horaires/arret/${encodeURIComponent(arret)}?${params.toString()}`
 }
 
+/** Reconstruit un arrêt à partir des paramètres de l'URL (inverse de stopToParams). */
 export function stopFromParams(params: URLSearchParams): Stop | null {
   const id = params.get('arret')
   if (!id) return null

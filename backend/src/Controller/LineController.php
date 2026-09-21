@@ -20,6 +20,7 @@ class LineController extends AbstractController
     ) {
     }
 
+    /** GET /api/lines?type= : toutes les lignes d'un mode (METRO, RER, TRAM ou BUS). */
     #[Route('', name: 'lines_list', methods: ['GET'])]
     public function list(Request $request): JsonResponse
     {
@@ -69,6 +70,7 @@ class LineController extends AbstractController
         ]);
     }
 
+    /** GET /api/lines/{lineId}/stops : infos d'une ligne et liste de ses arrêts. */
     #[Route('/{lineId}/stops', name: 'line_stops', methods: ['GET'])]
     public function stops(string $lineId): JsonResponse
     {

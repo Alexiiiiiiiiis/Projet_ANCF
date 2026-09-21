@@ -14,6 +14,7 @@ function formatDepartureTime(iso?: string | null): string | null {
   return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 }
 
+/** Ligne d'un départ : ligne, direction, minutes restantes, temps réel ou théorique. */
 export function ScheduleRow({ departure }: ScheduleRowProps) {
   const isRealtime = departure.isRealtime
   const minutesLeft = departure.waitMinutes

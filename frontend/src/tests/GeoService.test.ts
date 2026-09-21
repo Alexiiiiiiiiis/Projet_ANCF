@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-// Haversine formula (mirrors backend GeoService)
+// Formule de Haversine (identique au GeoService du backend)
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000
   const toRad = (deg: number) => (deg * Math.PI) / 180

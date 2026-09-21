@@ -16,11 +16,13 @@ class SystemParameterRepository extends ServiceEntityRepository
         parent::__construct($registry, SystemParameter::class);
     }
 
+    /** Cherche un paramètre système par sa clé. */
     public function findByKey(string $key): ?SystemParameter
     {
         return $this->findOneBy(['paramKey' => $key]);
     }
 
+    /** Valeur d'un paramètre système, ou la valeur par défaut s'il n'existe pas. */
     public function getValue(string $key, string $default = ''): string
     {
         $param = $this->findByKey($key);

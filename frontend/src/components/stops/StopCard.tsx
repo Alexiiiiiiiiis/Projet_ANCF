@@ -9,6 +9,7 @@ interface StopCardProps {
   distance?: string
 }
 
+/** Carte d'un arrêt : mode, nom, lignes, distance et étoile de favori. */
 export function StopCard({ stop, onClick, isFavorite, onToggleFavorite, distance }: StopCardProps) {
   return (
     <div

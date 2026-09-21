@@ -16,6 +16,7 @@ class AlertController extends AbstractController
     ) {
     }
 
+    /** GET /api/alerts : perturbations en cours, filtrables par ligne, gravité, mode et catégorie, avec pagination. */
     #[Route('', name: 'alerts_list', methods: ['GET'])]
     public function list(Request $request): JsonResponse
     {
@@ -28,17 +29,17 @@ class AlertController extends AbstractController
 
         $alerts = $this->idfmApi->getTrafficAlerts($lineId);
 
-        // Filter by severity if provided
+        // Filtre par gravité si demandé
         if ($severity) {
             $alerts = array_filter($alerts, fn ($a) => $a['severity'] === strtoupper($severity));
         }
 
-        // Filter by transport type if provided
+        // Filtre par mode de transport si demandé
         if ($type) {
             $alerts = array_filter($alerts, fn ($a) => $a['transportType'] === strtoupper($type));
         }
 
-        // Filter by category (INCIDENT / TRAVAUX)
+        // Filtre par catégorie (INCIDENT / TRAVAUX)
         if ($category) {
             $alerts = array_filter($alerts, fn ($a) => ($a['category'] ?? 'INCIDENT') === strtoupper($category));
         }
@@ -58,6 +59,7 @@ class AlertController extends AbstractController
         ]);
     }
 
+    /** GET /api/alerts/{lineId} : perturbations d'une seule ligne. */
     #[Route('/{lineId}', name: 'alerts_by_line', methods: ['GET'])]
     public function byLine(string $lineId): JsonResponse
     {

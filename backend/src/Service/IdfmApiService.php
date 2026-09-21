@@ -155,8 +155,9 @@ class IdfmApiService
         return $statuses[0];
     }
 
-    // ─── Stops Search ──────────────────────────────────────────────────────
+    // ─── Recherche d'arrêts ────────────────────────────────────────────────
 
+    /** Recherche d'arrêts par nom (ou par ligne, ex. « RER A »), avec cache et repli sur les données simulées. */
     public function searchStops(string $query, ?string $type = null, int $limit = 10): array
     {
         $cacheKey = 'stops_search_'.md5($query.$type.$limit);
@@ -181,13 +182,15 @@ class IdfmApiService
         return $data;
     }
 
-    // ─── Line Search (F2.2) ────────────────────────────────────────────────
+    // ─── Recherche par ligne (F2.2) ────────────────────────────────────────
 
+    /** Vrai si la saisie ressemble à un nom de ligne (« RER A », « M14 », « bus 91 »). */
     private function isLineQuery(string $query): bool
     {
         return (bool) preg_match('/^(rer|m|métro|metro|t|tram|bus|n)\s*-?\s*[a-z0-9]{1,4}$/iu', trim($query));
     }
 
+    /** Trouve la ligne demandée via l'API puis renvoie ses arrêts. */
     private function searchLineStops(string $query, int $limit): array
     {
         if (empty($this->apiKey)) {
@@ -236,6 +239,7 @@ class IdfmApiService
         }
     }
 
+    /** Données simulées : arrêts desservis par la ligne recherchée. */
     private function getMockLineStops(string $query, int $limit): array
     {
         $needle = strtoupper(str_replace(' ', '', $query));
@@ -253,6 +257,7 @@ class IdfmApiService
         return array_slice(array_values($filtered), 0, $limit);
     }
 
+    /** Appelle l'API IDFM (/places) pour chercher des arrêts par nom. */
     private function fetchStopsFromApi(string $query, ?string $type, int $limit): array
     {
         try {
@@ -276,8 +281,9 @@ class IdfmApiService
         }
     }
 
-    // ─── Nearby Stops ──────────────────────────────────────────────────────
+    // ─── Arrêts à proximité ────────────────────────────────────────────────
 
+    /** Arrêts autour d'une position GPS, avec cache et repli sur les données simulées. */
     public function getNearbyStops(float $lat, float $lon, int $radius = 500, ?string $type = null): array
     {
         $cacheKey = 'nearby_'.md5("{$lat}_{$lon}_{$radius}_{$type}");
@@ -297,6 +303,7 @@ class IdfmApiService
         return $data;
     }
 
+    /** Appelle l'API IDFM (/places_nearby) pour les arrêts autour d'une position. */
     private function fetchNearbyFromApi(float $lat, float $lon, int $radius, ?string $type): array
     {
         try {
@@ -320,7 +327,7 @@ class IdfmApiService
         }
     }
 
-    // ─── Lines (parcours Horaires : mode → ligne → arrêt) ──────────────────
+    // ─── Lignes (parcours Horaires : mode → ligne → arrêt) ─────────────────
 
     /** Modes acceptés par getLines(). */
     public static function lineTypes(): array
@@ -365,6 +372,8 @@ class IdfmApiService
     }
 
     /**
+     * Récupère depuis l'API toutes les lignes des modes demandés, page par page.
+     *
      * @param array<int, string> $commercialModes
      *
      * @return array<int, array<string, mixed>>
@@ -400,7 +409,11 @@ class IdfmApiService
         return $lines;
     }
 
-    /** @return array<string, mixed>|null null si la ligne n'existe pas */
+    /**
+     * Infos d'une ligne (code, nom, couleur, mode), avec cache.
+     *
+     * @return array<string, mixed>|null null si la ligne n'existe pas
+     */
     public function getLine(string $lineId): ?array
     {
         $cacheItem = $this->cache->getItem('line_'.md5($lineId));
@@ -419,7 +432,11 @@ class IdfmApiService
         return $line;
     }
 
-    /** @return array<string, mixed>|null */
+    /**
+     * Appelle l'API IDFM pour les infos d'une ligne, avec repli sur les données simulées.
+     *
+     * @return array<string, mixed>|null
+     */
     private function fetchLineFromApi(string $lineId): ?array
     {
         try {
@@ -474,6 +491,8 @@ class IdfmApiService
     }
 
     /**
+     * Appelle l'API IDFM pour la liste des arrêts d'une ligne.
+     *
      * @param array<string, mixed> $line
      *
      * @return array<int, array<string, mixed>>
@@ -505,6 +524,8 @@ class IdfmApiService
     }
 
     /**
+     * Convertit une ligne brute de l'API au format utilisé par le frontend.
+     *
      * @param array<string, mixed> $line
      *
      * @return array<string, mixed>
@@ -560,7 +581,11 @@ class IdfmApiService
         };
     }
 
-    /** @return array<int, array<string, mixed>> */
+    /**
+     * Données simulées : lignes d'un mode (vrais RER et métros, quelques trams et bus).
+     *
+     * @return array<int, array<string, mixed>>
+     */
     private function getMockLines(string $type): array
     {
         $lines = [];
@@ -647,7 +672,11 @@ class IdfmApiService
         ];
     }
 
-    /** @return array<string, mixed>|null */
+    /**
+     * Données simulées : cherche une ligne par son identifiant.
+     *
+     * @return array<string, mixed>|null
+     */
     private function getMockLine(string $lineId): ?array
     {
         foreach (self::lineTypes() as $type) {
@@ -661,9 +690,11 @@ class IdfmApiService
         return null;
     }
 
-    // ─── Departures ────────────────────────────────────────────────────────
+    // ─── Départs ───────────────────────────────────────────────────────────
 
     /**
+     * Prochains départs d'un arrêt, filtrés par mode et/ou par ligne.
+     *
      * @param string|null $type  METRO, RER, TRAM ou BUS pour ne garder que ce mode
      * @param string|null $line  code public d'une ligne (« RER B », « M4 ») pour ne garder qu'elle
      * @param int|null    $limit nombre de départs renvoyés (par défaut DEPARTURES_DISPLAYED,
@@ -710,6 +741,8 @@ class IdfmApiService
     }
 
     /**
+     * Charge tous les départs d'un arrêt : cache, sinon SIRI, sinon Navitia, sinon données simulées.
+     *
      * @return array<int, array<string, mixed>> tous les prochains passages de l'arrêt, modes et
      *                                          lignes confondus
      */
@@ -801,6 +834,8 @@ class IdfmApiService
     }
 
     /**
+     * Convertit la réponse SIRI en liste de départs triés par heure.
+     *
      * @param array<string, mixed> $data
      *
      * @return array<int, array<string, mixed>>
@@ -932,6 +967,7 @@ class IdfmApiService
         return $labels;
     }
 
+    /** Repli Navitia : départs d'un arrêt (horaires théoriques), données simulées en cas d'échec. */
     private function fetchDeparturesFromApi(string $stopId): array
     {
         try {
@@ -954,8 +990,9 @@ class IdfmApiService
         }
     }
 
-    // ─── Journeys (calcul d'itinéraire) ────────────────────────────────────
+    // ─── Itinéraires ───────────────────────────────────────────────────────
 
+    /** Calcule un itinéraire entre deux arrêts, avec cache et repli sur un trajet simulé. */
     public function searchJourneys(string $fromId, string $toId, ?string $fromName = null, ?string $toName = null): array
     {
         $cacheKey = 'journeys_'.md5($fromId.'_'.$toId);
@@ -975,6 +1012,7 @@ class IdfmApiService
         return $data;
     }
 
+    /** Appelle l'API IDFM (/journeys) pour calculer jusqu'à 3 itinéraires. */
     private function fetchJourneysFromApi(string $fromId, string $toId, ?string $fromName, ?string $toName): array
     {
         try {
@@ -999,6 +1037,7 @@ class IdfmApiService
         }
     }
 
+    /** Convertit les itinéraires de l'API au format du frontend (étapes, horaires, durée). */
     private function normalizeJourneysResponse(array $data): array
     {
         $journeys = [];
@@ -1054,6 +1093,7 @@ class IdfmApiService
         return $journeys;
     }
 
+    /** Données simulées : un itinéraire en métro puis en RER. */
     private function getMockJourneys(string $fromId, string $toId, ?string $fromName = null, ?string $toName = null): array
     {
         $now = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Paris'));
@@ -1092,8 +1132,9 @@ class IdfmApiService
         ];
     }
 
-    // ─── Traffic Alerts ────────────────────────────────────────────────────
+    // ─── Perturbations ─────────────────────────────────────────────────────
 
+    /** Perturbations en cours (tout le réseau ou une ligne), avec cache de 30 minutes. */
     public function getTrafficAlerts(?string $lineId = null): array
     {
         $cacheKey = 'alerts_'.md5($lineId ?? 'all');
@@ -1113,6 +1154,7 @@ class IdfmApiService
         return $data;
     }
 
+    /** Récupère les perturbations depuis l'API : d'une ligne, ou du réseau structurant et du flux global. */
     private function fetchAlertsFromApi(?string $lineId): array
     {
         if (null !== $lineId) {
@@ -1193,6 +1235,7 @@ class IdfmApiService
         return $disruptions;
     }
 
+    /** Récupère les perturbations d'un endpoint page par page (2 pages maximum). */
     private function fetchPaginatedDisruptions(string $path): array
     {
         $since = (new \DateTimeImmutable('now', new \DateTimeZone('Europe/Paris')))->format('Ymd\THis');
@@ -1232,8 +1275,9 @@ class IdfmApiService
         return $disruptions;
     }
 
-    // ─── Response Normalizers ──────────────────────────────────────────────
+    // ─── Mise en forme des réponses de l'API ───────────────────────────────
 
+    /** Garde les arrêts d'une réponse /places, filtrés par mode et limités en nombre. */
     private function normalizePlacesResponse(array $places, ?string $type, int $limit): array
     {
         $stops = [];
@@ -1254,6 +1298,7 @@ class IdfmApiService
         return $stops;
     }
 
+    /** Convertit une réponse /places_nearby en arrêts triés par distance à pied. */
     private function normalizeNearbyResponse(array $data, ?string $type): array
     {
         $stops = [];
@@ -1278,6 +1323,7 @@ class IdfmApiService
         return array_slice($stops, 0, 10);
     }
 
+    /** Convertit un arrêt brut de l'API au format du frontend (nom, position, mode, lignes). */
     private function normalizeStopArea(array $stopArea): array
     {
         $modeName = $this->pickPrimaryMode($stopArea['commercial_modes'] ?? []);
@@ -1320,6 +1366,7 @@ class IdfmApiService
         ];
     }
 
+    /** Convertit les départs Navitia au format du frontend. */
     private function normalizeDeparturesResponse(array $data): array
     {
         $departures = [];
@@ -1352,6 +1399,7 @@ class IdfmApiService
         return \array_slice($departures, 0, self::DEPARTURES_KEPT);
     }
 
+    /** Convertit les perturbations de l'API en alertes (gravité, catégorie, ligne, dates). */
     private function normalizeAlertsResponse(array $data): array
     {
         $cutoff = new \DateTimeImmutable(self::ALERTS_MAX_AGE, new \DateTimeZone('Europe/Paris'));
@@ -1483,7 +1531,11 @@ class IdfmApiService
         return 'STOP';
     }
 
-    /** @return array{0: string, 1: string} [lineCode, transportType] */
+    /**
+     * Déduit la ligne et le mode touchés par une perturbation.
+     *
+     * @return array{0: string, 1: string} [lineCode, transportType]
+     */
     private function extractImpactedLine(array $impactedObjects, string $title = ''): array
     {
         foreach ($impactedObjects as $object) {
@@ -1515,6 +1567,7 @@ class IdfmApiService
         return [$impactedObjects[0]['pt_object']['name'] ?? 'Inconnue', 'METRO'];
     }
 
+    /** Texte d'une perturbation pour un canal donné (titre, description...). */
     private function extractMessage(array $messages, string $channelType): ?string
     {
         foreach ($messages as $message) {
@@ -1537,6 +1590,7 @@ class IdfmApiService
         return trim(html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     }
 
+    /** Convertit une date Navitia (« 20260921T081200 ») en objet date, à l'heure de Paris. */
     private function parseNavitiaDate(?string $value): ?\DateTimeImmutable
     {
         if (!$value) {
@@ -1566,6 +1620,7 @@ class IdfmApiService
         return $best;
     }
 
+    /** Code affiché d'une ligne : « M4 », « RER B », « T3a », « 72 ». */
     private function formatLineLabel(string $modeName, string $code): string
     {
         // Le Transilien (H, J, K, L, N, P, R, U, V) et le TER sont assimilés au type RER pour le
@@ -1582,6 +1637,7 @@ class IdfmApiService
         };
     }
 
+    /** Traduit un mode de l'API (metro, rapidtransit, tramway...) en METRO, RER, TRAM ou BUS. */
     private function mapTransportType(string $mode): string
     {
         return match (strtolower($mode)) {
@@ -1595,6 +1651,7 @@ class IdfmApiService
         };
     }
 
+    /** Traduit la gravité d'une perturbation de l'API en MAJOR, MODERATE ou INFO. */
     private function mapSeverity(string $severity): string
     {
         return match (strtolower($severity)) {
@@ -1604,6 +1661,7 @@ class IdfmApiService
         };
     }
 
+    /** Classe une perturbation en TRAVAUX ou INCIDENT selon sa cause. */
     private function mapCategory(string $cause): string
     {
         $travauxKeywords = ['travaux', 'maintenance', 'modernisation', 'rénovation', 'works', 'construction'];
@@ -1617,7 +1675,7 @@ class IdfmApiService
         return 'INCIDENT';
     }
 
-    // ─── Mock Data (demo / API key not configured) ─────────────────────────
+    // ─── Données simulées (démo / clé API non configurée) ──────────────────
 
     /**
      * Minuscules sans accents, pour comparer une saisie clavier à un nom d'arrêt : sans ça,
@@ -1630,6 +1688,7 @@ class IdfmApiService
         return strtr(mb_strtolower($texte, 'UTF-8'), self::EQUIVALENCES_ACCENTS);
     }
 
+    /** Données simulées : recherche d'arrêts par nom. */
     private function getMockSearchResults(string $query, ?string $type, int $limit): array
     {
         $allStops = $this->getAllMockStops();
@@ -1645,11 +1704,12 @@ class IdfmApiService
         return array_slice(array_values($filtered), 0, $limit);
     }
 
+    /** Données simulées : arrêts les plus proches d'une position. */
     private function getMockNearbyStops(float $lat, float $lon, int $radius, ?string $type): array
     {
         $stops = $this->getAllMockStops();
 
-        // Filter by type
+        // Filtre par mode
         if ($type) {
             $stops = array_filter($stops, fn ($s) => $s['transportType'] === strtoupper($type));
         }
@@ -1667,12 +1727,13 @@ class IdfmApiService
         // renvoyer les 10 arrêts les plus proches du jeu de données mock même à 30km de distance.
         $stops = array_filter($stops, fn ($s) => $s['distance'] <= $radius);
 
-        // Sort by distance
+        // Tri par distance
         usort($stops, fn ($a, $b) => $a['distance'] <=> $b['distance']);
 
         return array_slice(array_values($stops), 0, 10);
     }
 
+    /** Données simulées : départs d'un arrêt (jamais annoncés en temps réel). */
     private function getMockDepartures(string $stopId): array
     {
         $lines = $this->getMockLinesForStop($stopId);
@@ -1703,6 +1764,8 @@ class IdfmApiService
     }
 
     /**
+     * Données simulées : perturbations, éventuellement filtrées par ligne.
+     *
      * @param string|null $lineId identifiant IDFM (« line:IDFM:C01384 ») ou code affiché (« M14 »)
      *                            — l'appelant public utilise le second, la vraie API le premier
      */
@@ -1781,6 +1844,7 @@ class IdfmApiService
         return str_replace([' ', '-'], '', mb_strtolower($code, 'UTF-8'));
     }
 
+    /** Liste des arrêts utilisés quand l'API n'est pas disponible (données simulées). */
     private function getAllMockStops(): array
     {
         return [
@@ -1837,6 +1901,7 @@ class IdfmApiService
         ];
     }
 
+    /** Données simulées : lignes et directions qui desservent un arrêt. */
     private function getMockLinesForStop(string $stopId): array
     {
         $map = [

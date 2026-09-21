@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { authService } from '../services/authService'
 import { Spinner } from '../components/ui/Spinner'
 
+/** Page profil : modifier ses infos, changer son mot de passe, supprimer son compte. */
 export function ProfilePage() {
   const { user, refreshUser, logout } = useAuth()
   const navigate = useNavigate()
@@ -20,6 +21,7 @@ export function ProfilePage() {
   const [loading, setLoading] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
 
+  /** Enregistre le prénom et le nom modifiés. */
   const updateProfile = async (e: FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -35,6 +37,7 @@ export function ProfilePage() {
     }
   }
 
+  /** Vérifie puis enregistre le nouveau mot de passe. */
   const changePassword = async (e: FormEvent) => {
     e.preventDefault()
     if (pwdForm.next.length < 8) { setPwdMsg('8 caractères minimum.'); return }
@@ -52,11 +55,13 @@ export function ProfilePage() {
     }
   }
 
+  /** Ferme la confirmation de suppression et vide le mot de passe saisi. */
   const closeDeletePanel = () => {
     setShowDelete(false)
     setDeletePassword('')
   }
 
+  /** Supprime le compte après confirmation par mot de passe, puis déconnecte. */
   const deleteAccount = async () => {
     setLoading(true)
     try {
@@ -77,7 +82,7 @@ export function ProfilePage() {
     <div className="mx-auto max-w-lg space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Mon profil</h1>
 
-      {/* Profile info */}
+      {/* Informations du profil */}
       <div className="rounded-2xl bg-white p-6 shadow-sm">
         <h2 className="mb-4 font-semibold text-gray-700">Informations personnelles</h2>
         <form onSubmit={updateProfile} className="space-y-3">
@@ -114,7 +119,7 @@ export function ProfilePage() {
         </form>
       </div>
 
-      {/* Change password */}
+      {/* Changement de mot de passe */}
       <div className="rounded-2xl bg-white p-6 shadow-sm">
         <h2 className="mb-4 font-semibold text-gray-700">Changer le mot de passe</h2>
         <form onSubmit={changePassword} className="space-y-3">
@@ -157,7 +162,7 @@ export function ProfilePage() {
         </form>
       </div>
 
-      {/* Danger zone */}
+      {/* Zone sensible : suppression du compte */}
       <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
         <h2 className="mb-2 font-semibold text-red-700">Zone dangereuse</h2>
         <p className="mb-4 text-sm text-red-600">

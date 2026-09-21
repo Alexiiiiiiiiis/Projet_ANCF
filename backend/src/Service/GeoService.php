@@ -15,8 +15,8 @@ class GeoService
     private const WALKING_DETOUR_FACTOR = 1.3;
 
     /**
-     * Calculate distance between two GPS coordinates using Haversine formula.
-     * Returns distance in meters (à vol d'oiseau).
+     * Distance entre deux coordonnées GPS, calculée avec la formule de Haversine.
+     * Renvoie la distance en mètres (à vol d'oiseau).
      */
     public function calculateDistance(float $lat1, float $lon1, float $lat2, float $lon2): float
     {
@@ -46,7 +46,7 @@ class GeoService
     }
 
     /**
-     * Format distance for display.
+     * Formate une distance pour l'affichage.
      * < 1000m → "250m"
      * >= 1000m → "1.2km".
      */
@@ -60,7 +60,7 @@ class GeoService
     }
 
     /**
-     * Check if a point is within a given radius (meters) of a center.
+     * Vérifie si un point est dans un rayon donné (en mètres) autour d'un centre.
      */
     public function isWithinRadius(float $centerLat, float $centerLon, float $pointLat, float $pointLon, float $radiusM): bool
     {

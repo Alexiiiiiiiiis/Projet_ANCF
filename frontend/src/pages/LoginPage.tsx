@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { Spinner } from '../components/ui/Spinner'
 import { BackButton } from '../components/ui/BackButton'
 
+/** Page de connexion. */
 export function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -15,6 +16,7 @@ export function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  /** Connecte l'utilisateur puis le renvoie vers la page qu'il voulait ouvrir. */
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')

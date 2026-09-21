@@ -10,6 +10,7 @@ export function alertesDeLigne(alerts: TrafficAlert[]): TrafficAlert[] {
   return alerts.filter((a) => a.scope !== 'STOP')
 }
 
+/** Garde seulement les pannes d'équipement des gares (ascenseur, escalator...). */
 export function alertesDeStation(alerts: TrafficAlert[]): TrafficAlert[] {
   return alerts.filter((a) => a.scope === 'STOP')
 }

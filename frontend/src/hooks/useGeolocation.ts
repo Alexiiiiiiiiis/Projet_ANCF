@@ -7,6 +7,7 @@ interface GeoState {
   loading: boolean
 }
 
+/** Suit la position GPS de l'utilisateur (latitude, longitude, erreur, chargement). */
 export function useGeolocation() {
   const [state, setState] = useState<GeoState>({ lat: null, lon: null, error: null, loading: true })
 

@@ -11,6 +11,7 @@ import { stopScheduleUrl } from '../utils/stopParams'
 import { TRANSPORT_COLORS, TRANSPORT_ICONS, TRANSPORT_LABELS } from '../types/transport'
 import { useState } from 'react'
 
+/** Page des favoris : arrêts avec leurs prochains départs, lignes avec leur état de trafic. */
 export function FavoritesPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()

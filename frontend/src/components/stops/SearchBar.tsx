@@ -13,6 +13,7 @@ interface SearchBarProps {
   presetQuery?: string
 }
 
+/** Champ de recherche d'arrêts avec suggestions (requête lancée 400 ms après la frappe). */
 export function SearchBar({ onSelect, placeholder = 'Rechercher un arrêt...', type, presetQuery }: SearchBarProps) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -32,6 +33,7 @@ export function SearchBar({ onSelect, placeholder = 'Rechercher un arrêt...', t
     staleTime: 60_000,
   })
 
+  /** Choisit un arrêt dans les suggestions et le transmet au composant parent. */
   const handleSelect = (stop: Stop) => {
     setQuery(stop.name)
     setOpen(false)

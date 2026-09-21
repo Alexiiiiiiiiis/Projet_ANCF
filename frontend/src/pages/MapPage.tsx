@@ -15,6 +15,7 @@ const TransportMap = lazy(() =>
   import('../components/map/TransportMap').then((m) => ({ default: m.TransportMap }))
 )
 
+/** Page carte : arrêts autour de l'utilisateur ou de l'arrêt recherché, avec leurs départs. */
 export function MapPage() {
   const { lat, lon } = useGeolocation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -68,6 +69,7 @@ export function MapPage() {
       ? { lat, lon, key: `${roundedLat},${roundedLon}` }
       : null
 
+  /** Centre la carte sur l'arrêt choisi et met l'URL à jour. */
   const handleSearchSelect = (stop: Stop) => {
     setSearchedStop(stop)
     setSelectedStop(stop)
@@ -76,6 +78,7 @@ export function MapPage() {
     setSearchParams(stopToParams(stop), { replace: true })
   }
 
+  /** Recentre la carte sur la position GPS de l'utilisateur. */
   const backToPosition = () => {
     setSearchedStop(null)
     setSelectedStop(null)

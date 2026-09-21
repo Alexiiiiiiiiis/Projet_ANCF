@@ -17,6 +17,7 @@ import { TRANSPORT_COLORS, TRANSPORT_LABELS } from '../types/transport'
 
 const TYPE_FILTERS: TransportType[] = ['METRO', 'RER', 'TRAM', 'BUS']
 
+/** Page d'accueil : recherche, arrêts proches, favoris, arrêts populaires et prochains départs. */
 export function Home() {
   const { user } = useAuth()
   const { stops: favoriteStops, isFavorite, toggle, error: favoriteError, clearError } = useFavorites()
@@ -50,6 +51,7 @@ export function Home() {
     staleTime: 60_000,
   })
 
+  /** Ajoute ou retire un arrêt des favoris. */
   const toggleFavorite = (stop: Stop) =>
     toggle({
       stopId: stop.id,
@@ -58,6 +60,7 @@ export function Home() {
       transportType: stop.transportType,
     })
 
+  /** Garde seulement les arrêts du mode choisi dans le filtre. */
   const byType = (stops: Stop[]) =>
     typeFilter ? stops.filter((s) => s.transportType === typeFilter) : stops
 
@@ -77,6 +80,7 @@ export function Home() {
   // passages, elle se consulte depuis la page Horaires.
   const filteredFavorites = byType(favoriteStops.map(favoriteAsStop))
 
+  /** Affiche la carte d'un arrêt ; un clic affiche ses prochains départs. */
   const renderStopCard = (stop: Stop) => (
     <StopCard
       key={stop.id}

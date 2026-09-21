@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 
+/** Page de la politique de confidentialité (RGPD). */
 export function PolitiqueConfidentialitePage() {
   return (
     <div className="mx-auto max-w-3xl">

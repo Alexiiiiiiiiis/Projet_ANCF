@@ -24,6 +24,7 @@ class StopController extends AbstractController
     ) {
     }
 
+    /** GET /api/stops/search?q= : recherche d'arrêts par nom, enregistrée dans l'historique. */
     #[Route('/search', name: 'stops_search', methods: ['GET'])]
     public function search(Request $request): JsonResponse
     {
@@ -52,6 +53,7 @@ class StopController extends AbstractController
         ]);
     }
 
+    /** GET /api/stops/nearby : arrêts autour d'une position GPS (lat, lon, radius). */
     #[Route('/nearby', name: 'stops_nearby', methods: ['GET'])]
     public function nearby(Request $request): JsonResponse
     {
@@ -100,6 +102,7 @@ class StopController extends AbstractController
         return $this->json(['queries' => array_values($queries)]);
     }
 
+    /** GET /api/stops/{stopId} : prochains départs d'un arrêt. */
     #[Route('/{stopId}', name: 'stops_detail', methods: ['GET'])]
     public function detail(string $stopId): JsonResponse
     {

@@ -61,26 +61,31 @@ export interface FavoriteInput {
 }
 
 export const transportService = {
+  /** Recherche d'arrêts par nom. */
   async searchStops(params: StopSearchParams): Promise<Stop[]> {
     const { data } = await api.get<{ stops: Stop[] }>('/stops/search', { params })
     return data.stops
   },
 
+  /** Arrêts autour d'une position GPS. */
   async getNearbyStops(params: NearbyParams): Promise<Stop[]> {
     const { data } = await api.get<{ stops: Stop[] }>('/stops/nearby', { params })
     return data.stops
   },
 
+  /** Détail d'un arrêt (non utilisée dans l'application). */
   async getStop(stopId: string): Promise<Stop> {
     const { data } = await api.get<Stop>(`/stops/${stopId}`)
     return data
   },
 
+  /** Prochains départs d'un arrêt, filtrables par mode, ligne et nombre. */
   async getDepartures(stopId: string, params?: ScheduleParams): Promise<ScheduleResponse> {
     const { data } = await api.get<ScheduleResponse>(`/schedules/${stopId}`, { params })
     return data
   },
 
+  /** Toutes les lignes d'un mode (METRO, RER, TRAM, BUS). */
   async getLines(type: TransportType): Promise<TransportLine[]> {
     const { data } = await api.get<{ lines: TransportLine[] }>('/lines', { params: { type } })
     return data.lines
@@ -104,41 +109,49 @@ export const transportService = {
     return data.statuses
   },
 
+  /** Dernières recherches de l'utilisateur connecté. */
   async getSearchHistory(): Promise<string[]> {
     const { data } = await api.get<{ queries: string[] }>('/stops/history')
     return data.queries
   },
 
+  /** Perturbations en cours, avec filtres et pagination. */
   async getAlerts(params?: { lineId?: string; severity?: string; type?: string; category?: string; page?: number; limit?: number }): Promise<AlertsResponse> {
     const { data } = await api.get<AlertsResponse>('/alerts', { params })
     return data
   },
 
+  /** Perturbations d'une ligne. */
   async getLineAlerts(lineId: string): Promise<TrafficAlert[]> {
     const { data } = await api.get<AlertsResponse>(`/alerts/${lineId}`)
     return data.alerts
   },
 
+  /** Calcule un itinéraire entre deux arrêts. */
   async searchJourneys(from: string, to: string, fromName?: string, toName?: string): Promise<JourneysResponse> {
     const { data } = await api.get<JourneysResponse>('/journeys', { params: { from, to, fromName, toName } })
     return data
   },
 
-  // Favorites
+  // Favoris
+  /** Favoris de l'utilisateur connecté. */
   async getFavorites(): Promise<FavoriteStop[]> {
     const { data } = await api.get<{ favorites: FavoriteStop[] }>('/favorites')
     return data.favorites
   },
 
+  /** Ajoute un arrêt ou une ligne aux favoris. */
   async addFavorite(favorite: FavoriteInput): Promise<FavoriteStop> {
     const { data } = await api.post<FavoriteStop>('/favorites', favorite)
     return data
   },
 
+  /** Retire un favori. */
   async removeFavorite(id: number): Promise<void> {
     await api.delete(`/favorites/${id}`)
   },
 
+  /** Réordonne les favoris (non utilisée dans l'application). */
   async reorderFavorites(orderedIds: number[]): Promise<void> {
     await api.put('/favorites/reorder', { orderedIds })
   },

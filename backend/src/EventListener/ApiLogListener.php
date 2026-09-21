@@ -16,17 +16,18 @@ class ApiLogListener
     ) {
     }
 
+    /** Enregistre chaque requête /api/* (route, code HTTP, temps de réponse) une fois la réponse envoyée. */
     public function __invoke(TerminateEvent $event): void
     {
         $request = $event->getRequest();
         $path = $request->getPathInfo();
 
-        // Only log /api/ requests
+        // On ne journalise que les requêtes /api/
         if (!str_starts_with($path, '/api/')) {
             return;
         }
 
-        // Exclude the login endpoint to avoid logging credentials
+        // On exclut la route de connexion pour ne jamais enregistrer d'identifiants
         if ('/api/auth/login_check' === $path) {
             return;
         }
@@ -34,13 +35,13 @@ class ApiLogListener
         $response = $event->getResponse();
         $statusCode = $response->getStatusCode();
 
-        // Calculate response time from the PHP request start time
+        // Temps de réponse calculé depuis le début de la requête PHP
         $startTime = $_SERVER['REQUEST_TIME_FLOAT'] ?? null;
         $responseTimeMs = null !== $startTime
             ? (int) round((microtime(true) - (float) $startTime) * 1000)
             : 0;
 
-        // Cap at SMALLINT UNSIGNED max (65535 ms ≈ 65 s)
+        // Plafonné au maximum d'un SMALLINT UNSIGNED (65535 ms ≈ 65 s)
         $responseTimeMs = min($responseTimeMs, 65535);
 
         $errorMessage = null;
@@ -51,7 +52,7 @@ class ApiLogListener
                 if (is_array($decoded)) {
                     $errorMessage = $decoded['message'] ?? $decoded['detail'] ?? $decoded['error'] ?? null;
                 }
-                // Fall back to raw content (capped) if no structured message found
+                // Sans message structuré, on garde le contenu brut (tronqué)
                 if (null === $errorMessage) {
                     $errorMessage = mb_substr($content, 0, 500);
                 }
@@ -69,7 +70,7 @@ class ApiLogListener
             $this->entityManager->persist($log);
             $this->entityManager->flush();
         } catch (\Throwable) {
-            // Never let logging break the application
+            // La journalisation ne doit jamais faire planter l'application
         }
     }
 }

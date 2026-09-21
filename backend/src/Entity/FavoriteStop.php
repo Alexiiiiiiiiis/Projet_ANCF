@@ -54,6 +54,7 @@ class FavoriteStop
     #[ORM\Column(type: 'smallint', options: ['default' => 0])]
     private int $sortOrder = 0;
 
+    /** Renseigne la date d'ajout juste avant l'insertion en base. */
     #[ORM\PrePersist]
     public function onPrePersist(): void
     {
@@ -154,6 +155,7 @@ class FavoriteStop
         return $this;
     }
 
+    /** Convertit le favori en tableau pour la réponse JSON. */
     public function toArray(): array
     {
         return [

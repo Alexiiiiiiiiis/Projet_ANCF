@@ -12,18 +12,22 @@ interface State {
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false, error: null }
 
+  /** Passe en mode erreur quand un composant enfant plante. */
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error }
   }
 
+  /** Écrit l'erreur et la pile des composants dans la console. */
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('[ErrorBoundary]', error, info.componentStack)
   }
 
+  /** Efface l'erreur pour réessayer d'afficher la page. */
   handleReset = () => {
     this.setState({ hasError: false, error: null })
   }
 
+  /** Affiche l'écran d'erreur si besoin, sinon la page normale. */
   render() {
     if (this.state.hasError) {
       return (

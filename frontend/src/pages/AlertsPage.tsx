@@ -28,6 +28,7 @@ const TYPES: { value: '' | TransportType; label: string }[] = [
 
 const PAGE_SIZE = 20
 
+/** Page des perturbations, avec filtres (catégorie, gravité, mode) et pagination. */
 export function AlertsPage() {
   const [severity, setSeverity] = useState('')
   const [category, setCategory] = useState('')
@@ -50,16 +51,19 @@ export function AlertsPage() {
   const alerts = data?.alerts ?? []
   const totalPages = data?.totalPages ?? 1
 
+  /** Change le filtre de catégorie et revient à la page 1. */
   const handleCategoryChange = (value: string) => {
     setCategory(value)
     setPage(1)
   }
 
+  /** Change le filtre de gravité et revient à la page 1. */
   const handleSeverityChange = (value: string) => {
     setSeverity(value)
     setPage(1)
   }
 
+  /** Change le filtre de mode de transport et revient à la page 1. */
   const handleTypeChange = (value: '' | TransportType) => {
     setType(value)
     setPage(1)

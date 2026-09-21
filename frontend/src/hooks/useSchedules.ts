@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { transportService, type ScheduleParams } from '../services/transportService'
 
+/** Prochains départs d'un arrêt, rafraîchis toutes les 30 secondes. */
 export function useSchedules(stopId: string | null, params: ScheduleParams = {}) {
   const { type, line, limit } = params
 

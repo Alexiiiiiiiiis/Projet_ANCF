@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { authService } from '../services/authService'
 import { Spinner } from '../components/ui/Spinner'
 
+/** Page « mot de passe oublié » : demande l'envoi d'un lien de réinitialisation. */
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
@@ -10,6 +11,7 @@ export function ForgotPasswordPage() {
   const [debugToken, setDebugToken] = useState<string | null>(null)
   const [error, setError] = useState('')
 
+  /** Envoie l'email à l'API pour recevoir le lien de réinitialisation. */
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')

@@ -19,6 +19,7 @@ class UserRepository extends ServiceEntityRepository implements PasswordUpgrader
         parent::__construct($registry, User::class);
     }
 
+    /** Remplace le hash du mot de passe quand Symfony le recalcule avec un algorithme plus récent. */
     public function upgradePassword(PasswordAuthenticatedUserInterface $user, string $newHashedPassword): void
     {
         if (!$user instanceof User) {
@@ -29,6 +30,7 @@ class UserRepository extends ServiceEntityRepository implements PasswordUpgrader
         $this->getEntityManager()->flush();
     }
 
+    /** Utilisateurs actifs (non bloqués), du plus récent au plus ancien. */
     public function findActiveUsers(int $limit = 1000): array
     {
         return $this->createQueryBuilder('u')
@@ -40,6 +42,7 @@ class UserRepository extends ServiceEntityRepository implements PasswordUpgrader
             ->getResult();
     }
 
+    /** Nombre total d'utilisateurs. */
     public function countAll(): int
     {
         return (int) $this->createQueryBuilder('u')
@@ -48,6 +51,7 @@ class UserRepository extends ServiceEntityRepository implements PasswordUpgrader
             ->getSingleScalarResult();
     }
 
+    /** Nombre d'utilisateurs inscrits depuis minuit. */
     public function countActiveToday(): int
     {
         $today = new \DateTimeImmutable('today');
@@ -60,6 +64,7 @@ class UserRepository extends ServiceEntityRepository implements PasswordUpgrader
             ->getSingleScalarResult();
     }
 
+    /** Une page d'utilisateurs, du plus récent au plus ancien. */
     public function findPaginated(int $page = 1, int $limit = 20): array
     {
         $offset = ($page - 1) * $limit;

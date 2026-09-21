@@ -7,6 +7,7 @@ interface ProtectedRouteProps {
   requireAdmin?: boolean
 }
 
+/** Protège une page : renvoie vers la connexion si non connecté, vers l'accueil s'il faut être admin. */
 export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
   const { user, isLoading, isAdmin } = useAuth()
   const location = useLocation()

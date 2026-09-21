@@ -8,7 +8,7 @@ export const api = axios.create({
   timeout: 10000,
 })
 
-// Attach JWT token on every request
+// Ajoute le token JWT à chaque requête
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('ancf_token')
   if (token) {
@@ -17,7 +17,7 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// Handle 401 globally — mais seulement pour une session expirée/invalide, pas pour un
+// Gère les 401 pour toute l'application — mais seulement pour une session expirée/invalide, pas pour un
 // login qui échoue simplement (login_check renvoie aussi 401 sur un mauvais mot de passe :
 // rediriger dans ce cas empêcherait LoginPage d'afficher son message d'erreur inline).
 api.interceptors.response.use(

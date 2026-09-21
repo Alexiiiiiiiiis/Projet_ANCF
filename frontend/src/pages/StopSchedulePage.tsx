@@ -19,6 +19,7 @@ const DEPARTURES_LIMIT = 40
 
 const TOUTES = 'TOUTES'
 
+/** Fiche d'un arrêt : tous ses prochains départs, filtrables par ligne et par direction. */
 export function StopSchedulePage() {
   const { stopId = '' } = useParams()
   const [searchParams] = useSearchParams()
@@ -73,6 +74,7 @@ export function StopSchedulePage() {
     [departures, direction]
   )
 
+  /** Change le filtre de ligne et remet à zéro le filtre de direction. */
   const changerLigne = (value: string | null) => {
     setLine(value)
     // Une direction du RER B n'existe plus quand on bascule sur le M4.

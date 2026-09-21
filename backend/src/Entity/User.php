@@ -73,6 +73,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->searchHistories = new ArrayCollection();
     }
 
+    /** Renseigne les dates de création et de modification juste avant l'insertion. */
     #[ORM\PrePersist]
     public function onPrePersist(): void
     {
@@ -80,6 +81,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->updatedAt = new \DateTimeImmutable();
     }
 
+    /** Met à jour la date de modification à chaque changement. */
     #[ORM\PreUpdate]
     public function onPreUpdate(): void
     {
@@ -103,11 +105,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
+    /** Identifiant de connexion utilisé par Symfony Security : l'email. */
     public function getUserIdentifier(): string
     {
         return (string) $this->email;
     }
 
+    /** Rôles de l'utilisateur, ROLE_USER toujours inclus. */
     public function getRoles(): array
     {
         $roles = $this->roles;
@@ -135,9 +139,10 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
+    /** Efface les données sensibles temporaires après l'authentification (aucune ici). */
     public function eraseCredentials(): void
     {
-        // If you store any temporary, sensitive data on the user, clear it here
+        // Si des données sensibles temporaires sont stockées sur l'utilisateur, les effacer ici
     }
 
     public function getFirstName(): ?string
@@ -248,6 +253,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
+    /** Convertit l'utilisateur en tableau pour la réponse JSON (sans le mot de passe). */
     public function toArray(): array
     {
         return [

@@ -2,11 +2,13 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../hooks/useTheme'
 
+/** Barre du haut : liens de navigation, thème clair/sombre, connexion ou déconnexion. */
 export function Navbar() {
   const { user, isAdmin, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
+  /** Déconnecte l'utilisateur puis le renvoie vers la page de connexion. */
   const handleLogout = () => {
     logout()
     navigate('/connexion')

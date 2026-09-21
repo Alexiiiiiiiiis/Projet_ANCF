@@ -34,6 +34,7 @@ class AuthController extends AbstractController
     ) {
     }
 
+    /** POST /api/auth/login_check : connexion JWT, entièrement gérée par le firewall Symfony. */
     #[Route('/login_check', name: 'api_login_check', methods: ['POST'])]
     public function loginCheck(): never
     {
@@ -41,6 +42,7 @@ class AuthController extends AbstractController
         throw new \LogicException('Ce endpoint est géré par le security firewall.');
     }
 
+    /** POST /api/auth/register : crée un compte utilisateur (nombre de tentatives limité par IP). */
     #[Route('/register', name: 'auth_register', methods: ['POST'])]
     public function register(Request $request): JsonResponse
     {
@@ -90,6 +92,7 @@ class AuthController extends AbstractController
         return $this->json($user->toArray(), Response::HTTP_CREATED);
     }
 
+    /** GET /api/auth/me : renvoie le profil de l'utilisateur connecté. */
     #[Route('/me', name: 'auth_me', methods: ['GET'])]
     public function me(#[CurrentUser] ?User $user): JsonResponse
     {
@@ -100,6 +103,7 @@ class AuthController extends AbstractController
         return $this->json($user->toArray());
     }
 
+    /** PUT /api/auth/me : modifie le prénom, le nom ou l'email de l'utilisateur connecté. */
     #[Route('/me', name: 'auth_update_profile', methods: ['PUT'])]
     public function updateProfile(Request $request, #[CurrentUser] ?User $user): JsonResponse
     {
@@ -140,6 +144,7 @@ class AuthController extends AbstractController
         return $this->json($user->toArray());
     }
 
+    /** PUT /api/auth/change-password : change le mot de passe après vérification de l'ancien. */
     #[Route('/change-password', name: 'auth_change_password', methods: ['PUT'])]
     public function changePassword(Request $request, #[CurrentUser] ?User $user): JsonResponse
     {
@@ -165,6 +170,7 @@ class AuthController extends AbstractController
         return $this->json(['message' => 'Mot de passe modifié avec succès.']);
     }
 
+    /** DELETE /api/auth/account : supprime le compte (RGPD) après confirmation par mot de passe. */
     #[Route('/account', name: 'auth_delete_account', methods: ['DELETE'])]
     public function deleteAccount(Request $request, #[CurrentUser] ?User $user): JsonResponse
     {
@@ -188,6 +194,7 @@ class AuthController extends AbstractController
         return $this->json(['message' => 'Compte supprimé conformément au RGPD.'], Response::HTTP_OK);
     }
 
+    /** POST /api/auth/forgot-password : génère un token de réinitialisation et l'envoie par email. */
     #[Route('/forgot-password', name: 'auth_forgot_password', methods: ['POST'])]
     public function forgotPassword(Request $request): JsonResponse
     {
@@ -259,6 +266,7 @@ class AuthController extends AbstractController
         return $this->json($response);
     }
 
+    /** POST /api/auth/reset-password : définit un nouveau mot de passe à partir du token reçu par email. */
     #[Route('/reset-password', name: 'auth_reset_password', methods: ['POST'])]
     public function resetPassword(Request $request): JsonResponse
     {

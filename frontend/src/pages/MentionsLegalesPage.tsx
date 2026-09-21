@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 
+/** Page des mentions légales. */
 export function MentionsLegalesPage() {
   return (
     <div className="mx-auto max-w-3xl">

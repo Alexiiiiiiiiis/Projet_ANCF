@@ -5,6 +5,7 @@ interface AlertCardProps {
   alert: TrafficAlert
 }
 
+/** Carte d'une perturbation : titre, gravité, catégorie, description et dates. */
 export function AlertCard({ alert }: AlertCardProps) {
   const color = SEVERITY_COLORS[alert.severity] ?? '#6b7280'
   const label = SEVERITY_LABELS[alert.severity] ?? alert.severity

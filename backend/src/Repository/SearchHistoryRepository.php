@@ -17,6 +17,7 @@ class SearchHistoryRepository extends ServiceEntityRepository
         parent::__construct($registry, SearchHistory::class);
     }
 
+    /** Dernières recherches d'un utilisateur, de la plus récente à la plus ancienne. */
     public function findRecentByUser(User $user, int $limit = 10): array
     {
         return $this->createQueryBuilder('s')
@@ -28,6 +29,7 @@ class SearchHistoryRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    /** Nombre de recherches effectuées depuis minuit. */
     public function countRequestsToday(): int
     {
         $today = new \DateTimeImmutable('today');

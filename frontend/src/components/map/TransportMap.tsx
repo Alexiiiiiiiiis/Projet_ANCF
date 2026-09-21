@@ -5,7 +5,7 @@ import type { Stop } from '../../types/transport'
 import { TRANSPORT_COLORS } from '../../types/transport'
 import 'leaflet/dist/leaflet.css'
 
-// Fix leaflet default icon
+// Corrige l'icône par défaut de Leaflet
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
@@ -13,6 +13,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 })
 
+/** Crée le marqueur coloré d'un arrêt sur la carte (mis en évidence s'il est sélectionné). */
 function makeIcon(color: string, highlighted = false) {
   // L'arrêt recherché reçoit un liseré foncé et un point central plus gros pour ressortir
   // au milieu des arrêts voisins, qui partagent souvent la même couleur de mode.
@@ -69,6 +70,7 @@ interface TransportMapProps {
   onStopClick?: (stop: Stop) => void
 }
 
+/** Carte Leaflet avec la position de l'utilisateur et les arrêts autour. */
 export function TransportMap({ stops, userLat, userLon, focus, highlightStopId, onStopClick }: TransportMapProps) {
   const centerLat = focus?.lat ?? userLat ?? 48.8566
   const centerLon = focus?.lon ?? userLon ?? 2.3522

@@ -19,6 +19,7 @@ export function useFavorites() {
     enabled: !!user,
   })
 
+  /** Recharge la liste des favoris et efface le message d'erreur. */
   const onSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ['favorites'] })
     setError(null)

@@ -17,6 +17,7 @@ class JourneyController extends AbstractController
     ) {
     }
 
+    /** GET /api/journeys : calcule un itinéraire entre deux arrêts (paramètres from et to). */
     #[Route('', name: 'journeys_search', methods: ['GET'])]
     public function search(Request $request): JsonResponse
     {

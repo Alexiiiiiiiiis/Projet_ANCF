@@ -21,6 +21,7 @@ function normaliser(texte: string): string {
     .toLowerCase()
 }
 
+/** Fiche d'une ligne : liste de ses arrêts et onglet des perturbations. */
 export function LinePage() {
   const { lineId = '' } = useParams()
   const navigate = useNavigate()

@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 
+/** Lien de la barre du bas, mis en couleur quand sa page est ouverte. */
 const NavItem = ({ to, icon, label }: { to: string; icon: string; label: string }) => (
   <NavLink
     to={to}
@@ -15,6 +16,7 @@ const NavItem = ({ to, icon, label }: { to: string; icon: string; label: string 
   </NavLink>
 )
 
+/** Barre de navigation en bas de l'écran, affichée seulement sur mobile. */
 export function BottomNav() {
   const { user } = useAuth()
 

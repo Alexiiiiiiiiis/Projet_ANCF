@@ -35,6 +35,7 @@ class ApiLog
     #[ORM\Column]
     private ?\DateTimeImmutable $createdAt = null;
 
+    /** Renseigne la date de création juste avant l'insertion en base. */
     #[ORM\PrePersist]
     public function onPrePersist(): void
     {
@@ -111,6 +112,7 @@ class ApiLog
         return $this->createdAt;
     }
 
+    /** Convertit le log en tableau pour la réponse JSON. */
     public function toArray(): array
     {
         return [

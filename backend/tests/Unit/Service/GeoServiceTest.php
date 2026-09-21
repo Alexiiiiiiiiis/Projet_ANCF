@@ -30,7 +30,7 @@ class GeoServiceTest extends TestCase
 
     public function testCalculateDistanceShortWalk(): void
     {
-        // ~250 meters within Paris
+        // ~250 mètres dans Paris
         $distance = $this->geoService->calculateDistance(48.8566, 2.3522, 48.8588, 2.3510);
         $this->assertGreaterThan(100, $distance);
         $this->assertLessThan(500, $distance);
@@ -52,11 +52,11 @@ class GeoServiceTest extends TestCase
 
     public function testIsWithinRadius(): void
     {
-        // Chatelet to Saint-Lazare ~3km, should not be within 500m
+        // Châtelet → Saint-Lazare ≈ 3 km : hors d'un rayon de 500 m
         $withinSmall = $this->geoService->isWithinRadius(48.8596, 2.3473, 48.8750, 2.3250, 500);
         $this->assertFalse($withinSmall);
 
-        // Same point — should be within 100m
+        // Même point : forcément dans un rayon de 100 m
         $withinLarge = $this->geoService->isWithinRadius(48.8566, 2.3522, 48.8566, 2.3522, 100);
         $this->assertTrue($withinLarge);
     }

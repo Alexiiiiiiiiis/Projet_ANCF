@@ -43,7 +43,7 @@ class IdfmApiServiceTest extends TestCase
         );
     }
 
-    // ─── Mock data tests (no API key) ─────────────────────────────────────
+    // ─── Tests des données simulées (sans clé API) ────────────────────────
 
     public function testSearchStopsReturnsMockDataWithoutApiKey(): void
     {
@@ -95,7 +95,7 @@ class IdfmApiServiceTest extends TestCase
         $this->assertIsArray($results);
         $this->assertNotEmpty($results);
 
-        // Check sorted by distance
+        // Vérifie le tri par distance
         $distances = array_column($results, 'distance');
         for ($i = 1; $i < count($distances); ++$i) {
             $this->assertGreaterThanOrEqual($distances[$i - 1], $distances[$i]);
@@ -163,7 +163,7 @@ class IdfmApiServiceTest extends TestCase
 
         $this->assertIsArray($results);
         $this->assertNotEmpty($results);
-        // Falls back to default M1 line
+        // Repli sur la ligne M1 par défaut
         $this->assertSame('M1', $results[0]['lineCode']);
     }
 
@@ -185,7 +185,7 @@ class IdfmApiServiceTest extends TestCase
         $this->assertContains($alert['severity'], ['MAJOR', 'MODERATE', 'INFO']);
     }
 
-    // ─── Line search tests (F2.2) ─────────────────────────────────────────
+    // ─── Tests de la recherche par ligne (F2.2) ───────────────────────────
 
     public function testSearchByLineReturnsMockStopsOfLine(): void
     {
@@ -255,7 +255,7 @@ class IdfmApiServiceTest extends TestCase
         $this->assertSame('Châtelet', $results[0]['name']);
     }
 
-    // ─── Cache tests ──────────────────────────────────────────────────────
+    // ─── Tests du cache ───────────────────────────────────────────────────
 
     public function testSearchStopsReturnsCachedData(): void
     {
@@ -291,7 +291,7 @@ class IdfmApiServiceTest extends TestCase
         $this->assertSame($cachedAlerts, $results);
     }
 
-    // ─── API call tests (with API key) ────────────────────────────────────
+    // ─── Tests des appels API (avec clé API) ──────────────────────────────
 
     public function testSearchStopsCallsApiWhenKeyProvided(): void
     {
@@ -339,7 +339,7 @@ class IdfmApiServiceTest extends TestCase
         $service = $this->createService('test-api-key');
         $results = $service->searchStops('Châtelet');
 
-        // Should fall back to mock data
+        // Doit se replier sur les données simulées
         $this->assertIsArray($results);
         $this->assertNotEmpty($results);
     }
@@ -1052,7 +1052,7 @@ class IdfmApiServiceTest extends TestCase
         $this->assertSame('195m', $results[0]['distanceLabel']);
     }
 
-    // ─── Journeys (calcul d'itinéraire) ────────────────────────────────────
+    // ─── Itinéraires ───────────────────────────────────────────────────────
 
     public function testSearchJourneysReturnsMockDataWithoutApiKey(): void
     {
