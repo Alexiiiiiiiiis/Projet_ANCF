@@ -313,7 +313,7 @@ même base simultanément.
 Un mutualisé PHP + MySQL héberge l'API en permanence, sans conteneur et sans machine allumée à
 la maison. Deux différences avec un hébergeur de conteneurs : Apache remplace nginx — d'où
 `backend/public/.htaccess`, sans lequel toutes les routes autres que `/` renvoient 404 — et il
-n'y a pas de Redis, le cache applicatif retombant alors sur le disque (`config/packages/prod/cache.php`).
+n'y a pas de Redis, le cache applicatif retombant alors sur le disque (`config/packages/cache.php`).
 
 **1. Dans l'admin AlwaysData**, avant tout déploiement :
 

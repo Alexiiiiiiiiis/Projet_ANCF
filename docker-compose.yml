@@ -23,9 +23,14 @@ services:
       JWT_PASSPHRASE: ${JWT_PASSPHRASE:-ancf_secret}
       IDFM_API_KEY: ${IDFM_API_KEY:-}
       CORS_ALLOW_ORIGIN: ^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$
+      # Le service redis ci-dessous existe : sans cette variable, l'application retombe sur le
+      # cache disque (cf. backend/config/packages/cache.php) et le conteneur tourne pour rien.
+      REDIS_URL: redis://redis:6379
     depends_on:
       mysql:
         condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - ancf_network
 

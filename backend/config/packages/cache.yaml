@@ -1,11 +1,17 @@
 framework:
     cache:
-        app: cache.adapter.filesystem
+        # « app » n'est pas déclaré ici : son adaptateur (Redis ou disque) est choisi dans
+        # cache.php, qui est chargé avant ce fichier. Le redéclarer écraserait ce choix.
         system: cache.adapter.system
         directory: '%kernel.cache_dir%/pools'
         pools:
+            # Réponses de l'API IDFM. Adossé à cache.app pour suivre l'adaptateur retenu, mais
+            # dans son propre espace de noms : les données amont se vident indépendamment du
+            # cache Doctrine et du rate limiter. Injecté explicitement dans IdfmApiService
+            # (cf. services.yaml) — sans ça, l'autowiring lui donnait cache.app et ce pool ne
+            # servait à rien.
             idfm.cache:
-                adapter: cache.adapter.filesystem
+                adapter: cache.app
                 default_lifetime: 300
             # Référencés par doctrine.yaml (when@prod) pour le cache de requêtes/résultats —
             # DoctrineBundle ne les crée pas automatiquement, il faut les déclarer soi-même.
@@ -13,7 +19,3 @@ framework:
                 adapter: cache.app
             doctrine.system_cache_pool:
                 adapter: cache.system
-
-# Le cache applicatif de production est configuré dans cache.php : le choix de l'adaptateur
-# dépend de la présence d'un Redis chez l'hébergeur, et ne peut pas s'exprimer ici (voir le
-# commentaire de ce fichier).

@@ -18,6 +18,9 @@ services:
 
     App\Service\IdfmApiService:
         arguments:
+            # Pool dédié (cf. cache.yaml) plutôt que le cache.app de l'autowiring : les réponses
+            # IDFM sont ainsi isolées dans leur propre espace de noms.
+            $cache: '@idfm.cache'
             $apiKey: '%idfm_api_key%'
             $apiBaseUrl: '%idfm_api_base_url%'
             $siriBaseUrl: '%idfm_siri_base_url%'
