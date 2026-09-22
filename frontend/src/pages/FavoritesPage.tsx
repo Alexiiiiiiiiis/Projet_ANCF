@@ -32,7 +32,14 @@ export function FavoritesPage() {
     onError: () => setRemoveError('Impossible de retirer ce favori. Réessayez.'),
   })
 
-  const { data: schedules } = useSchedules(expandedId)
+  // Un arrêt est mis en favori depuis une ligne précise : « RER D à Garges » doit afficher les
+  // passages du RER D, pas tout ce qui dessert Garges. Le backend sait filtrer (?line=), il
+  // suffit de lui transmettre la ligne du favori déplié. Un arrêt enregistré sans ligne
+  // (lineCode vide) garde l'affichage complet.
+  const favoriDeplie = favorites.find((f) => f.stopId === expandedId)
+  const { data: schedules, isLoading: chargementHoraires } = useSchedules(expandedId, {
+    line: favoriDeplie?.lineCode || undefined,
+  })
 
   const statuts = useLineStatuses(
     favorites.filter((f) => 'LINE' === f.kind).map((f) => f.stopId)
@@ -132,10 +139,19 @@ export function FavoritesPage() {
                         Tous les horaires
                       </button>
                     </>
-                  ) : (
+                  ) : chargementHoraires ? (
                     <div className="flex justify-center py-3">
                       <Spinner size="sm" />
                     </div>
+                  ) : (
+                    // Filtrer par ligne rend ce cas courant : le RER D n'a plus de passage la
+                    // nuit alors que des bus desservent encore l'arrêt. Un Spinner tournerait
+                    // alors indéfiniment sur une réponse pourtant arrivée.
+                    <p className="py-3 text-center text-sm text-gray-500">
+                      {fav.lineCode
+                        ? `Aucun passage ${fav.lineCode} pour le moment.`
+                        : 'Aucun passage pour le moment.'}
+                    </p>
                   )}
                 </div>
               )}
