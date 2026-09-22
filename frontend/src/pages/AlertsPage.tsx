@@ -35,6 +35,18 @@ export function AlertsPage() {
   const [type, setType] = useState<'' | TransportType>('')
   const [page, setPage] = useState(1)
 
+  /**
+   * Sur mobile la liste dépasse largement la hauteur de l'écran : après « Suivant », on resterait
+   * devant la pagination, les alertes de la nouvelle page hors champ au-dessus. Sur desktop le
+   * problème ne se voit pas, la page tenant souvent en entier.
+   */
+  const changerPage = (nouvellePage: number) => {
+    setPage(nouvellePage)
+
+    const animationReduite = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    window.scrollTo({ top: 0, behavior: animationReduite ? 'auto' : 'smooth' })
+  }
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['alerts', severity, category, type, page],
     queryFn: () => transportService.getAlerts({
@@ -148,7 +160,7 @@ export function AlertsPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-4 pt-2">
               <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() => changerPage(Math.max(1, page - 1))}
                 disabled={page <= 1}
                 className="rounded-full px-4 py-1.5 text-sm font-medium bg-white text-gray-600 border border-gray-200 disabled:opacity-40 disabled:cursor-not-allowed hover:border-purple-300"
               >
@@ -158,7 +170,7 @@ export function AlertsPage() {
                 Page {page} / {totalPages}
               </span>
               <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() => changerPage(Math.min(totalPages, page + 1))}
                 disabled={page >= totalPages}
                 className="rounded-full px-4 py-1.5 text-sm font-medium bg-white text-gray-600 border border-gray-200 disabled:opacity-40 disabled:cursor-not-allowed hover:border-purple-300"
               >

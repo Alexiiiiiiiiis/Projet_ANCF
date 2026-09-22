@@ -1,15 +1,19 @@
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../hooks/useTheme'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 
 /** Barre du haut : liens de navigation, thème clair/sombre, connexion ou déconnexion. */
 export function Navbar() {
   const { user, isAdmin, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
+  const [confirmerDeconnexion, setConfirmerDeconnexion] = useState(false)
 
   /** Déconnecte l'utilisateur puis le renvoie vers la page de connexion. */
   const handleLogout = () => {
+    setConfirmerDeconnexion(false)
     logout()
     navigate('/connexion')
   }
@@ -79,7 +83,7 @@ export function Navbar() {
               {/* Libellé réduit à une icône sous md : le texte complet ne laisserait pas la place
                   à la pastille ci-dessus sur un écran de 360 px. */}
               <button
-                onClick={handleLogout}
+                onClick={() => setConfirmerDeconnexion(true)}
                 className="rounded-lg bg-gray-100 px-2.5 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
                 aria-label="Se déconnecter"
                 title="Se déconnecter"
@@ -106,6 +110,17 @@ export function Navbar() {
           )}
         </div>
       </div>
+
+      {/* Sur mobile le bouton est réduit à une icône, voisine de la pastille de compte : un appui
+          involontaire est vite arrivé, et la déconnexion vide le jeton sans retour possible. */}
+      <ConfirmDialog
+        open={confirmerDeconnexion}
+        title="Se déconnecter ?"
+        message="Vous devrez vous reconnecter pour retrouver vos favoris et vos itinéraires."
+        confirmLabel="Se déconnecter"
+        onConfirm={handleLogout}
+        onCancel={() => setConfirmerDeconnexion(false)}
+      />
     </header>
   )
 }
