@@ -72,12 +72,11 @@ projet/
 │   ├── mysql/        # script d'initialisation de la base
 │   └── api/          # image mono-conteneur nginx + PHP-FPM (hébergeurs PaaS)
 ├── config/jwt/       # clés JWT de la prod Docker et de la démo (non versionnées)
-├── scripts/          # déploiement AlwaysData, démonstration publique
+├── scripts/          # déploiement AlwaysData (deploy-alwaysdata.sh)
 ├── .github/
 │   └── workflows/    # GitHub Actions : ci.yml et cd.yml
 ├── docker-compose.yml        (développement)
-├── docker-compose.prod.yml   (production)
-└── railway.json              (hébergement Railway)
+└── docker-compose.prod.yml   (déploiement sur serveur unique)
 ```
 
 ## API Endpoints
@@ -88,6 +87,7 @@ projet/
 | Méthode | Endpoint                   | Description                     | Auth |
 |---------|----------------------------|---------------------------------|------|
 | GET     | /api/health                | Sonde de santé (503 si la base est injoignable) | Non  |
+| GET     | /api/config                | Paramètres système destinés au client (cadence de rafraîchissement, rayon par défaut, plafond de favoris, mode maintenance) | Non  |
 | POST    | /api/auth/register         | Inscription                     | Non  |
 | POST    | /api/auth/login_check      | Connexion → JWT                 | Non  |
 | POST    | /api/auth/forgot-password  | Envoi d'un lien de réinitialisation du mot de passe | Non  |
@@ -117,6 +117,14 @@ projet/
 | GET     | /api/admin/api-logs        | Derniers appels à l'API IDFM et temps de réponse moyen (`?limit=` jusqu'à 200) | Admin|
 | GET     | /api/admin/parameters      | Paramètres système              | Admin|
 | PUT     | /api/admin/parameters/{id} | Modifier un paramètre (`value`) | Admin|
+
+Les paramètres système sont appliqués au runtime : les TTL de cache pilotent `IdfmApiService`,
+le rayon par défaut `/api/stops/nearby`, le plafond de favoris `/api/favorites`, et le mode
+maintenance renvoie 503 sur toutes les routes publiques (`MaintenanceListener`). Restent
+ouvertes en maintenance : `/api/health` pour la sonde de l'hébergeur, `/api/config` pour que le
+frontend affiche sa page d'attente, `/api/auth/login_check` et `/api/admin` pour qu'un
+administrateur puisse rouvrir le service. Les valeurs sont bornées côté serveur
+(`SystemParameters`) : un TTL à 0 saisi dans l'administration épuiserait le quota IDFM.
 
 ## Sécurité
 
@@ -182,138 +190,27 @@ docker compose exec frontend npm run lint
 - **Push sur `develop` / `main`** (pas sur les pull requests) → en plus, build de l'image PHP et validation de `docker-compose.yml`
 - **Tag `v*.*.*`** (`cd.yml`) → build & push sur Docker Hub des images backend, API mono-conteneur et nginx/frontend, puis création d'une GitHub Release
 
-## Déploiement en production
+## Déploiement
 
-Les images Docker (backend + nginx/frontend) sont publiées automatiquement sur Docker Hub à
-chaque tag `v*.*.*` (cf. `.github/workflows/cd.yml`) — le serveur de prod n'a donc besoin que de
-`docker-compose.prod.yml` et d'un fichier `.env`, pas du code source ni d'un build local.
+La production repose sur **deux hébergements distincts et indépendants** :
 
-### 1. Récupérer les fichiers nécessaires
-```bash
-git clone https://github.com/Alexiiiiiiiiis/Projet_ANCF.git
-cd Projet_ANCF/projet
-```
-
-### 2. Configuration
-```bash
-cp .env.example .env
-# Renseigner au minimum : MYSQL_*, DATABASE_URL, JWT_PASSPHRASE, CORS_ALLOW_ORIGIN,
-# DOCKER_IMAGE_PREFIX (votre pseudo Docker Hub) et VERSION (tag à déployer, ex. v1.0.3).
-```
-
-### 3. Générer les clés JWT (une seule fois, avant le premier démarrage)
-```bash
-mkdir -p config/jwt
-openssl genrsa -out config/jwt/private.pem 4096
-openssl rsa -pubout -in config/jwt/private.pem -out config/jwt/public.pem
-```
-Ces clés sont montées en lecture seule dans le conteneur `php` (`./config/jwt`) — elles ne sont
-jamais intégrées à l'image, qui est publique sur Docker Hub. À sauvegarder : les régénérer
-invaliderait tous les tokens JWT déjà émis.
-
-### 4. Récupérer et démarrer les images publiées
-```bash
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
-```
-
-### 5. Initialiser la base de données (premier déploiement uniquement)
-```bash
-docker compose -f docker-compose.prod.yml exec php php bin/console doctrine:migrations:migrate --no-interaction
-```
-
-### Mettre à jour vers une nouvelle version
-```bash
-# Modifier VERSION dans .env, puis :
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
-docker compose -f docker-compose.prod.yml exec php php bin/console doctrine:migrations:migrate --no-interaction
-```
-
-## Hébergement en ligne (Vercel + PaaS)
-
-Alternative au déploiement sur un serveur unique décrit ci-dessus : le frontend est servi par
-Vercel, l'API par un hébergeur de conteneurs. Les deux parties sont indépendantes.
+| Partie | Hébergeur | URL |
+|---|---|---|
+| API Symfony | AlwaysData (mutualisé PHP + MySQL) | `https://transport-ancf.alwaysdata.net` |
+| Frontend React | Vercel | `https://transport-ancf.vercel.app` |
 
 **Vercel ne peut héberger que le frontend.** C'est une plateforme de fichiers statiques et de
 fonctions serverless : elle ne fait tourner ni PHP-FPM au long cours, ni MySQL, ni Redis. L'API
-Symfony a donc besoin de son propre hébergeur.
+Symfony a donc son propre hébergeur.
 
-### Frontend sur Vercel
-
-La configuration est dans `frontend/vercel.json` (build Vite, réécriture SPA, en-têtes de
-sécurité et cache des assets).
-
-1. Sur vercel.com : **Add New > Project**, importer `Alexiiiiiiiiis/Projet_ANCF`.
-2. **Root Directory : `frontend`** — sans ça, Vercel cherche un `package.json` à la racine du
-   dépôt et le build échoue.
-3. Variable d'environnement `VITE_API_URL` = URL publique de l'API, suffixe `/api` compris
-   (cf. `frontend/.env.production.example`). Elle est lue **au moment du build** : la modifier
-   impose un redéploiement, un simple redémarrage ne suffit pas.
-
-En ligne de commande :
-```bash
-cd frontend
-npx vercel login
-npx vercel deploy --prod
-```
-
-L'URL doit être en `https://` : le site Vercel étant servi en HTTPS, un appel vers une API en
-`http://` est bloqué par le navigateur (contenu mixte).
-
-### API sur un hébergeur de conteneurs
-
-`docker/api/Dockerfile` produit une image **mono-conteneur** (nginx + PHP-FPM supervisés) qui
-écoute sur le port imposé par la variable `PORT` — le format attendu par Railway, Render,
-Clever Cloud ou Fly.io, qui ne lancent qu'un conteneur par service. Elle est publiée sur Docker
-Hub à chaque tag sous `<pseudo>/transport-api`.
-
-Le couple `docker/php` + `docker/nginx` reste l'image du déploiement Docker Compose ci-dessus ;
-les deux voies coexistent.
-
-Exemple avec Railway (`railway.json` est déjà fourni) :
-1. Créer un projet à partir du dépôt GitHub — le Dockerfile et la sonde `/api/health` sont
-   détectés automatiquement.
-2. Ajouter les services **MySQL** et **Redis** dans le même projet.
-3. Renseigner les variables d'environnement ci-dessous.
-4. Générer un domaine public, puis reporter cette URL dans `VITE_API_URL` côté Vercel et dans
-   `CORS_ALLOW_ORIGIN` côté API.
-
-| Variable | Valeur |
-|---|---|
-| `APP_ENV` | `prod` |
-| `APP_SECRET` | chaîne aléatoire (`openssl rand -hex 32`) |
-| `DATABASE_URL` | `mysql://user:pass@host:3306/base?serverVersion=8.0&charset=utf8mb4` |
-| `REDIS_URL` | `redis://host:6379` |
-| `JWT_PASSPHRASE` | passphrase des clés JWT |
-| `JWT_SECRET_KEY_B64` | clé privée PEM encodée en base64 |
-| `JWT_PUBLIC_KEY_B64` | clé publique PEM encodée en base64 |
-| `CORS_ALLOW_ORIGIN` | `^https://.*\.vercel\.app$` (ou le domaine exact) |
-| `IDFM_API_KEY` | clé PRIM |
-| `MAILER_DSN` | DSN SMTP réel |
-| `FRONTEND_URL` | URL Vercel, utilisée dans les liens de réinitialisation de mot de passe |
-
-Aucun volume persistant n'existe sur ce type d'hébergeur : les clés JWT sont transmises en
-variables d'environnement plutôt que montées en fichiers.
-```bash
-openssl genrsa -out private.pem -aes256 -passout pass:VOTRE_PASSPHRASE 4096
-openssl rsa -pubout -in private.pem -passin pass:VOTRE_PASSPHRASE -out public.pem
-base64 -w0 private.pem   # → JWT_SECRET_KEY_B64
-base64 -w0 public.pem    # → JWT_PUBLIC_KEY_B64
-```
-Sans ces deux variables, le conteneur génère une paire éphémère au démarrage et **invalide tous
-les jetons émis à chaque redéploiement**.
-
-Les migrations Doctrine sont appliquées automatiquement au démarrage du conteneur. Mettre
-`RUN_MIGRATIONS=0` si plusieurs instances tournent en parallèle, pour éviter qu'elles migrent la
-même base simultanément.
-
-### API sur un hébergement mutualisé (AlwaysData)
+### API sur AlwaysData
 
 Un mutualisé PHP + MySQL héberge l'API en permanence, sans conteneur et sans machine allumée à
-la maison. Deux différences avec un hébergeur de conteneurs : Apache remplace nginx — d'où
+la maison. Deux conséquences sur la configuration : Apache remplace nginx — d'où
 `backend/public/.htaccess`, sans lequel toutes les routes autres que `/` renvoient 404 — et il
-n'y a pas de Redis, le cache applicatif retombant alors sur le disque (`config/packages/cache.php`).
+n'y a pas de Redis, le cache applicatif retombant sur le disque. Le choix de l'adaptateur est
+fait dans `backend/config/packages/cache.php` d'après la présence de `REDIS_URL` : le même code
+tourne sur Redis en Docker et sur disque ici, sans modification.
 
 **1. Dans l'admin AlwaysData**, avant tout déploiement :
 
@@ -327,7 +224,7 @@ n'y a pas de Redis, le cache applicatif retombant alors sur le disque (`config/p
 La racine du site pointe sur `public/`, jamais sur la racine du dépôt : sinon `.env.local`, les
 clés JWT et le code source deviennent téléchargeables depuis le navigateur.
 
-**2. Récupérer le code et le configurer**, en SSH :
+**2. Récupérer le code et le configurer**, en SSH (première installation seulement) :
 ```bash
 ssh transport-ancf@ssh-transport-ancf.alwaysdata.net
 git clone https://github.com/Alexiiiiiiiiis/Projet_ANCF.git ~/www/Projet_ANCF
@@ -343,7 +240,7 @@ cp .env.dist .env.local   # puis renseigner les valeurs ci-dessous
 | `APP_SECRET` | chaîne aléatoire (`openssl rand -hex 32`) |
 | `DATABASE_URL` | `mysql://utilisateur:motdepasse@mysql-transport-ancf.alwaysdata.net:3306/base?serverVersion=8.0&charset=utf8mb4` |
 | `JWT_PASSPHRASE` | passphrase des clés JWT (générées au premier déploiement) |
-| `REDIS_URL` | laisser **vide** — le cache bascule sur le disque |
+| `REDIS_URL` | laisser **vide** — AlwaysData n'en fournit pas, le cache bascule sur le disque |
 | `CORS_ALLOW_ORIGIN` | `^https://transport-ancf(-[a-z0-9-]+)?\.vercel\.app$` |
 | `FRONTEND_URL` | `https://transport-ancf.vercel.app` |
 | `IDFM_API_KEY` | clé PRIM (facultatif — données simulées si vide) |
@@ -352,50 +249,100 @@ cp .env.dist .env.local   # puis renseigner les valeurs ci-dessous
 Un mot de passe MySQL contenant `@ : / ? # &` doit être encodé (`%40`, `%3A`…) : ces caractères
 coupent le DSN en deux et produisent une erreur de connexion peu lisible.
 
-**3. Déployer** — c'est aussi la commande de mise à jour, après un `git pull` :
+**3. Déployer** — c'est la même commande à chaque mise à jour :
 ```bash
+ssh transport-ancf@ssh-transport-ancf.alwaysdata.net
+cd ~/www/Projet_ANCF
+git pull origin main
 sh scripts/deploy-alwaysdata.sh
 ```
 Le script installe les dépendances sans les paquets de développement, génère les clés JWT à la
-première exécution, applique les migrations et réchauffe le cache.
+première exécution, applique les migrations, puis vide et réchauffe le cache. Ce vidage n'est pas
+cosmétique : le conteneur de services Symfony est compilé une fois et mis en cache, donc un
+changement de configuration — l'adaptateur de cache, par exemple — reste sans effet tant que le
+cache n'a pas été reconstruit.
 
-**4. Brancher le frontend** sur cette URL, une fois pour toutes :
-```bash
-cd frontend
-npx vercel env rm VITE_API_URL production --yes
-printf 'https://transport-ancf.alwaysdata.net/api' | npx vercel env add VITE_API_URL production
-npx vercel deploy --prod
-```
-Contrairement au tunnel de démonstration, l'URL ne change plus : ce redéploiement n'est à faire
-qu'une seule fois.
+### Frontend sur Vercel
 
-### Mode démonstration : API exposée depuis le poste de développement
+La configuration de build est dans `frontend/vercel.json` (build Vite, réécriture SPA, en-têtes
+de sécurité et cache des assets). Le déploiement se déclenche automatiquement à chaque push sur
+`main`, via l'intégration GitHub.
 
-Pour une soutenance, l'API peut tourner sur la machine de développement et être exposée par un
-tunnel Cloudflare, sans hébergeur ni compte. Le frontend reste hébergé en permanence sur Vercel.
+Deux réglages se font **dans le dashboard Vercel**, pas dans le dépôt :
 
-```bash
-sh scripts/demo-publique.sh
-```
+1. **Settings → Build and Deployment → Root Directory : `frontend`.** Sans ça, Vercel lance
+   l'installation à la racine du dépôt, où il n'y a ni `package.json` ni `package-lock.json`, et
+   le build échoue sur `npm ci` (`EUSAGE`). À noter : un `npx vercel deploy` lancé depuis
+   `frontend/` ignore ce réglage et passe malgré tout — le défaut ne se voit donc que sur les
+   déploiements déclenchés par un push.
+2. **Variable d'environnement `VITE_API_URL`** = `https://transport-ancf.alwaysdata.net/api`.
+   Elle est lue **au moment du build** et figée dans le bundle : la modifier impose un
+   redéploiement, un simple redémarrage ne suffit pas.
 
-Le script démarre MySQL et Redis, lance l'API en `APP_ENV=prod` sur le port 8090, ouvre le
-tunnel, puis réinjecte l'URL obtenue dans `VITE_API_URL` côté Vercel et redéploie.
-
-Deux limites à connaître : l'API n'est accessible que tant que le script tourne et que la
-machine est allumée, et un tunnel « quick » reçoit une **URL différente à chaque démarrage** —
-c'est pourquoi le script redéploie le frontend à chaque fois, `VITE_API_URL` étant figée dans le
-bundle au moment du build.
-
-Les clés JWT sont générées une seule fois dans `config/jwt/` (ignoré par git) et montées en
-lecture seule : les comptes restent valides d'une session à l'autre.
+L'URL doit être en `https://` : le site Vercel étant servi en HTTPS, un appel vers une API en
+`http://` est bloqué par le navigateur (contenu mixte).
 
 ### Vérifier un déploiement
+
 ```bash
-curl https://votre-api.example.com/api/health
+# API
+curl https://transport-ancf.alwaysdata.net/api/health
 # {"status":"ok","database":"up","time":"..."}
+
+# Frontend
+curl -s -o /dev/null -w '%{http_code}\n' https://transport-ancf.vercel.app
 ```
-La route renvoie 503 tant que la base n'est pas jointe : c'est la sonde utilisée par
+`/api/health` renvoie 503 tant que la base n'est pas jointe : c'est la sonde utilisée par
 l'hébergeur pour ne pas router de trafic vers une instance pas encore prête.
+
+> **Ne pas lancer `scripts/demo-publique.sh`.** Ce script date d'avant l'hébergement sur
+> AlwaysData : il démarre l'API sur le poste de développement derrière un tunnel Cloudflare
+> éphémère, **puis réécrit `VITE_API_URL` en production sur Vercel et redéploie**. Le site en
+> ligne se retrouve branché sur une machine locale, et redevient hors service dès que le tunnel
+> se ferme.
+
+---
+
+## Autres voies de déploiement
+
+Ces deux voies sont fonctionnelles et leurs images sont publiées à chaque tag `v*.*.*`
+(cf. `.github/workflows/cd.yml`), mais ce n'est pas ainsi que le projet est hébergé aujourd'hui.
+
+### Serveur unique avec Docker Compose
+
+`docker-compose.prod.yml` fait tourner la pile complète (API, nginx + frontend buildé, MySQL,
+Redis) sur une seule machine, à partir des images publiées sur Docker Hub — ni code source ni
+build local nécessaires.
+
+```bash
+cp .env.example .env    # MYSQL_*, DATABASE_URL, JWT_PASSPHRASE, CORS_ALLOW_ORIGIN,
+                        # DOCKER_IMAGE_PREFIX (pseudo Docker Hub), VERSION (tag à déployer)
+mkdir -p config/jwt
+openssl genrsa -out config/jwt/private.pem 4096
+openssl rsa -pubout -in config/jwt/private.pem -out config/jwt/public.pem
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml exec php php bin/console doctrine:migrations:migrate --no-interaction
+```
+
+Les clés JWT sont montées en lecture seule depuis l'hôte, jamais intégrées à l'image, qui est
+publique. À sauvegarder : les régénérer invaliderait tous les jetons déjà émis. C'est la seule
+configuration de déploiement où Redis sert réellement de cache applicatif, `REDIS_URL` y étant
+renseignée.
+
+### Hébergeur de conteneurs (PaaS)
+
+`docker/api/Dockerfile` produit une image **mono-conteneur** (nginx + PHP-FPM supervisés) qui
+écoute sur le port imposé par la variable `PORT` — le format attendu par Render, Clever Cloud ou
+Fly.io, qui ne lancent qu'un conteneur par service. Elle est publiée sous
+`<pseudo>/transport-api`.
+
+Aucun volume persistant n'existe sur ce type d'hébergeur : les clés JWT se transmettent en
+variables d'environnement (`JWT_SECRET_KEY_B64`, `JWT_PUBLIC_KEY_B64`, encodées avec
+`base64 -w0`) plutôt que montées en fichiers. Sans elles, le conteneur génère une paire éphémère
+au démarrage et **invalide tous les jetons émis à chaque redéploiement**. Les migrations sont
+appliquées automatiquement au démarrage ; mettre `RUN_MIGRATIONS=0` si plusieurs instances
+tournent en parallèle.
 
 ---
 

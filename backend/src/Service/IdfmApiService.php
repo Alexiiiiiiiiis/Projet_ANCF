@@ -92,7 +92,29 @@ class IdfmApiService
         private readonly string $apiBaseUrl,
         private readonly string $siriBaseUrl,
         private readonly GeoService $geoService,
+        // Optionnel : les tests unitaires construisent ce service sans base de données, et une
+        // installation dont les fixtures n'ont pas tourné doit garder les constantes ci-dessus.
+        private readonly ?SystemParameters $parameters = null,
     ) {
+    }
+
+    /**
+     * TTL du cache des départs, réglable depuis l'administration.
+     *
+     * Borné à [5, 300] : en dessous de 5 s le quota SIRI (1000 requêtes/jour) part en fumée en
+     * quelques minutes d'usage, au-delà de 5 min l'affichage n'a plus rien de temps réel.
+     */
+    private function departuresTtl(): int
+    {
+        return $this->parameters?->getInt('departures_cache_ttl', self::DEPARTURES_TTL, 5, 300)
+            ?? self::DEPARTURES_TTL;
+    }
+
+    /** TTL du cache des perturbations, réglable depuis l'administration, borné à [30 s, 1 h]. */
+    private function alertsTtl(): int
+    {
+        return $this->parameters?->getInt('alerts_cache_ttl', self::ALERTS_TTL, 30, 3600)
+            ?? self::ALERTS_TTL;
     }
 
     // ─── Suivi du quota API (F7.3) ──────────────────────────────────────────
@@ -762,7 +784,7 @@ class IdfmApiService
                 $data = $this->fetchDeparturesFromSiri($stopId) ?: $this->fetchDeparturesFromApi($stopId);
             }
 
-            $cacheItem->set($data)->expiresAfter(self::DEPARTURES_TTL);
+            $cacheItem->set($data)->expiresAfter($this->departuresTtl());
             $this->cache->save($cacheItem);
         }
 
@@ -1148,7 +1170,7 @@ class IdfmApiService
             ? $this->getMockAlerts($lineId)
             : $this->fetchAlertsFromApi($lineId);
 
-        $cacheItem->set($data)->expiresAfter(self::ALERTS_TTL);
+        $cacheItem->set($data)->expiresAfter($this->alertsTtl());
         $this->cache->save($cacheItem);
 
         return $data;

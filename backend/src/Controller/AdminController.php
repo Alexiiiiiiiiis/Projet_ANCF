@@ -9,6 +9,7 @@ use App\Repository\SearchHistoryRepository;
 use App\Repository\SystemParameterRepository;
 use App\Repository\UserRepository;
 use App\Service\IdfmApiService;
+use App\Service\SystemParameters;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -27,6 +28,7 @@ class AdminController extends AbstractController
         private readonly ApiLogRepository $apiLogRepo,
         private readonly SearchHistoryRepository $searchHistoryRepo,
         private readonly SystemParameterRepository $paramRepo,
+        private readonly SystemParameters $parameters,
         private readonly IdfmApiService $idfmApi,
     ) {
     }
@@ -150,6 +152,10 @@ class AdminController extends AbstractController
 
         $param->setParamValue($stringValue);
         $this->em->flush();
+
+        // Sans ça, la nouvelle valeur n'aurait d'effet qu'à l'expiration du cache (60 s) : une
+        // modification faite devant quelqu'un donnerait l'impression de ne rien faire.
+        $this->parameters->invalidate();
 
         return $this->json([
             'message' => 'Paramètre mis à jour.',

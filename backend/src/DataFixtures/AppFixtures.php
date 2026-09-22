@@ -48,7 +48,7 @@ class AppFixtures extends Fixture
             ['refresh_interval', '30', 'Intervalle de rafraîchissement', 'Intervalle (en secondes) pour le rafraîchissement automatique des départs', 'number'],
             ['default_radius', '500', 'Rayon par défaut', 'Rayon de recherche (en mètres) pour les arrêts à proximité', 'number'],
             ['max_favorites', '20', 'Favoris maximum', 'Nombre maximum de favoris par utilisateur', 'number'],
-            ['alerts_cache_ttl', '120', 'Cache alertes (TTL)', 'Durée de vie du cache des alertes (en secondes)', 'number'],
+            ['alerts_cache_ttl', '1800', 'Cache alertes (TTL)', 'Durée de vie du cache des alertes (en secondes)', 'number'],
             ['departures_cache_ttl', '30', 'Cache départs (TTL)', 'Durée de vie du cache des prochains départs (en secondes)', 'number'],
             ['maintenance_mode', 'false', 'Mode maintenance', 'Activer le mode maintenance (true/false)', 'boolean'],
         ];

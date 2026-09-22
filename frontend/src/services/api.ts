@@ -23,6 +23,12 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // 503 émis par MaintenanceListener : prévenir l'application pour qu'elle recharge la
+    // configuration et bascule sur l'écran d'attente, au lieu d'afficher une erreur par widget.
+    if (error.response?.status === 503 && error.response?.data?.maintenance) {
+      window.dispatchEvent(new Event('ancf:maintenance'))
+    }
+
     const isLoginAttempt = error.config?.url?.includes('/auth/login_check')
     if (error.response?.status === 401 && !isLoginAttempt) {
       localStorage.removeItem('ancf_token')

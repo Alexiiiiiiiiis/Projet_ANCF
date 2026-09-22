@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext'
 import { Layout } from './components/layout/Layout'
 import { ProtectedRoute } from './components/ui/ProtectedRoute'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
+import { MaintenanceGate } from './components/ui/MaintenanceGate'
 import { Home } from './pages/Home'
 import { MapPage } from './pages/MapPage'
 import { SchedulesPage } from './pages/SchedulesPage'
@@ -38,55 +39,57 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <Routes>
-              <Route element={<Layout />}>
-                <Route path="/" element={<Home />} />
-                <Route path="/carte" element={<MapPage />} />
-                <Route path="/horaires" element={<SchedulesPage />} />
-                <Route path="/horaires/ligne/:lineId" element={<LinePage />} />
-                <Route path="/horaires/arret/:stopId" element={<StopSchedulePage />} />
-                <Route
-                  path="/itineraire"
-                  element={
-                    <ProtectedRoute>
-                      <JourneyPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route path="/alertes" element={<AlertsPage />} />
-                <Route path="/mentions-legales" element={<MentionsLegalesPage />} />
-                <Route path="/politique-confidentialite" element={<PolitiqueConfidentialitePage />} />
-                <Route
-                  path="/favoris"
-                  element={
-                    <ProtectedRoute>
-                      <FavoritesPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/profil"
-                  element={
-                    <ProtectedRoute>
-                      <ProfilePage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin"
-                  element={
-                    <ProtectedRoute requireAdmin>
-                      <AdminPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route path="*" element={<NotFoundPage />} />
-              </Route>
-              <Route path="/connexion" element={<LoginPage />} />
-              <Route path="/inscription" element={<RegisterPage />} />
-              <Route path="/mot-de-passe-oublie" element={<ForgotPasswordPage />} />
-              <Route path="/reinitialiser-mot-de-passe" element={<ResetPasswordPage />} />
-            </Routes>
+            <MaintenanceGate>
+              <Routes>
+                <Route element={<Layout />}>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/carte" element={<MapPage />} />
+                  <Route path="/horaires" element={<SchedulesPage />} />
+                  <Route path="/horaires/ligne/:lineId" element={<LinePage />} />
+                  <Route path="/horaires/arret/:stopId" element={<StopSchedulePage />} />
+                  <Route
+                    path="/itineraire"
+                    element={
+                      <ProtectedRoute>
+                        <JourneyPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route path="/alertes" element={<AlertsPage />} />
+                  <Route path="/mentions-legales" element={<MentionsLegalesPage />} />
+                  <Route path="/politique-confidentialite" element={<PolitiqueConfidentialitePage />} />
+                  <Route
+                    path="/favoris"
+                    element={
+                      <ProtectedRoute>
+                        <FavoritesPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/profil"
+                    element={
+                      <ProtectedRoute>
+                        <ProfilePage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/admin"
+                    element={
+                      <ProtectedRoute requireAdmin>
+                        <AdminPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route path="*" element={<NotFoundPage />} />
+                </Route>
+                <Route path="/connexion" element={<LoginPage />} />
+                <Route path="/inscription" element={<RegisterPage />} />
+                <Route path="/mot-de-passe-oublie" element={<ForgotPasswordPage />} />
+                <Route path="/reinitialiser-mot-de-passe" element={<ResetPasswordPage />} />
+              </Routes>
+            </MaintenanceGate>
           </BrowserRouter>
         </AuthProvider>
       </QueryClientProvider>

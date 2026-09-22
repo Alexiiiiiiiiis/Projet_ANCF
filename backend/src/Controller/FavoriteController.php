@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\FavoriteStop;
 use App\Entity\User;
 use App\Repository\FavoriteStopRepository;
+use App\Service\SystemParameters;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -21,6 +22,7 @@ class FavoriteController extends AbstractController
         private readonly EntityManagerInterface $em,
         private readonly FavoriteStopRepository $favoriteRepo,
         private readonly ValidatorInterface $validator,
+        private readonly SystemParameters $parameters,
     ) {
     }
 
@@ -70,6 +72,15 @@ class FavoriteController extends AbstractController
                 'error' => 'LINE' === $kind
                     ? 'Cette ligne est déjà dans vos favoris.'
                     : 'Cet arrêt est déjà dans vos favoris.',
+            ], Response::HTTP_CONFLICT);
+        }
+
+        // Plafond réglable depuis l'administration. Vérifié après le contrôle de doublon :
+        // réajouter un favori déjà présent doit dire « déjà en favoris », pas « limite atteinte ».
+        $max = $this->parameters->getInt('max_favorites', 20, 1, 200);
+        if (count($this->favoriteRepo->findByUser($user)) >= $max) {
+            return $this->json([
+                'error' => "Limite de {$max} favoris atteinte. Supprimez-en un avant d'en ajouter un autre.",
             ], Response::HTTP_CONFLICT);
         }
 

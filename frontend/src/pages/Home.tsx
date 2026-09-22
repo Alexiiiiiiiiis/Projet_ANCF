@@ -36,9 +36,12 @@ export function Home() {
   const roundedLat = lat !== null ? Math.round(lat * 1000) / 1000 : null
   const roundedLon = lon !== null ? Math.round(lon * 1000) / 1000 : null
 
+  // Pas de radius transmis : le backend applique le rayon par défaut réglé dans l'espace
+  // d'administration (default_radius). Le figer ici en dupliquerait la valeur et rendrait le
+  // réglage sans effet sur la page qu'il est censé piloter.
   const { data: nearbyStops = [] } = useQuery({
     queryKey: ['nearby', roundedLat, roundedLon],
-    queryFn: () => transportService.getNearbyStops({ lat: lat!, lon: lon!, radius: 500 }),
+    queryFn: () => transportService.getNearbyStops({ lat: lat!, lon: lon! }),
     enabled: !!(lat && lon),
     staleTime: 120_000,
   })

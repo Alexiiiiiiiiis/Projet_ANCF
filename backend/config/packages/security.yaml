@@ -39,6 +39,9 @@ security:
 
     access_control:
         - { path: ^/api/health, roles: PUBLIC_ACCESS }
+        # Cadence de rafraîchissement et rayon par défaut : un visiteur non connecté consulte les
+        # horaires, il doit donc pouvoir lire ces réglages.
+        - { path: ^/api/config, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/login_check, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/register, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/forgot-password, roles: PUBLIC_ACCESS }

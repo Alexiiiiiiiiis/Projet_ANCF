@@ -6,6 +6,7 @@ use App\Entity\SearchHistory;
 use App\Entity\User;
 use App\Repository\SearchHistoryRepository;
 use App\Service\IdfmApiService;
+use App\Service\SystemParameters;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -21,6 +22,7 @@ class StopController extends AbstractController
         private readonly IdfmApiService $idfmApi,
         private readonly EntityManagerInterface $em,
         private readonly Security $security,
+        private readonly SystemParameters $parameters,
     ) {
     }
 
@@ -59,7 +61,10 @@ class StopController extends AbstractController
     {
         $lat = (float) $request->query->get('lat', 48.8566);
         $lon = (float) $request->query->get('lon', 2.3522);
-        $radius = min((int) $request->query->get('radius', 500), 2000);
+        // Rayon par défaut réglable depuis l'administration ; le plafond de 2 km reste codé
+        // ici, c'est une limite technique (coût de l'appel IDFM), pas une préférence.
+        $defaultRadius = $this->parameters->getInt('default_radius', 500, 100, 2000);
+        $radius = min((int) $request->query->get('radius', $defaultRadius), 2000);
         $type = $request->query->get('type');
 
         if (0.0 === $lat || 0.0 === $lon) {
