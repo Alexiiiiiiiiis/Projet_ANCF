@@ -59,17 +59,33 @@ export function Navbar() {
           </button>
           {user ? (
             <>
+              {/* Pastille d'initiale sur mobile : la navigation du haut est masquée sous md et la
+                  barre du bas est déjà pleine, donc sans ce bouton la page de compte — et avec
+                  elle la suppression du compte — est injoignable depuis un téléphone. */}
+              <Link
+                to="/profil"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-200 md:hidden"
+                aria-label="Mon compte"
+                title="Mon compte"
+              >
+                {user.firstName.charAt(0).toUpperCase() || '?'}
+              </Link>
               <Link
                 to="/profil"
                 className="hidden text-sm font-medium text-gray-700 hover:text-blue-700 md:block"
               >
                 {user.firstName}
               </Link>
+              {/* Libellé réduit à une icône sous md : le texte complet ne laisserait pas la place
+                  à la pastille ci-dessus sur un écran de 360 px. */}
               <button
                 onClick={handleLogout}
-                className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors"
+                className="rounded-lg bg-gray-100 px-2.5 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
+                aria-label="Se déconnecter"
+                title="Se déconnecter"
               >
-                Déconnexion
+                <span aria-hidden="true" className="md:hidden">🚪</span>
+                <span className="hidden md:inline">Déconnexion</span>
               </button>
             </>
           ) : (
