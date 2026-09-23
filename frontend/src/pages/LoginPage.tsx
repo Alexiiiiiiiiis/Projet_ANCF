@@ -89,11 +89,6 @@ export function LoginPage() {
           </p>
         </div>
 
-        <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs text-blue-700">
-          <p className="font-semibold mb-1">Comptes de démo :</p>
-          <p>Admin : admin@ancf.fr / Admin1234!</p>
-          <p>User : user@ancf.fr / User1234!</p>
-        </div>
       </div>
     </div>
   )
